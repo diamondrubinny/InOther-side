@@ -2,7 +2,7 @@ import { Queue } from "bullmq";
 
 export const MEDIA_QUEUE_NAME = "media";
 
-export type MediaJob = { type: "scan"; assetId: string } | { type: "cleanup" };
+export type MediaJob = { type: "scan"; assetId: string } | { type: "cleanup" } | { type: "finalize_releases" };
 
 /** Abstraction over the job queue so request handlers don't depend on BullMQ directly. */
 export interface MediaQueue {

@@ -28,6 +28,7 @@ export function accountRoutes(ctx: AppContext, sessionService: SessionService, v
         dir: textDirection(request.locale),
         emailVerified: auth.user.emailVerified,
         mfaEnabled: auth.user.mfaEnabled,
+        role: auth.user.role,
         reauthValid: isRecent(auth),
       };
     });

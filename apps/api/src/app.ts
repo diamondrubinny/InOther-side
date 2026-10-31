@@ -9,6 +9,9 @@ import { registerSecurity } from "./http/security.js";
 import { accountRoutes } from "./modules/account/account.routes.js";
 import { mediaRoutes } from "./modules/media/media.routes.js";
 import { MediaService } from "./modules/media/media.service.js";
+import { InheritanceService } from "./modules/release/inheritance.service.js";
+import { releaseRoutes } from "./modules/release/release.routes.js";
+import { ReleaseService } from "./modules/release/release.service.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { AuthService } from "./modules/auth/auth.service.js";
 import { vaultRoutes } from "./modules/vault/vault.routes.js";
@@ -48,6 +51,8 @@ export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandl
   const auth = new AuthService(ctx);
   const vaults = new VaultService(ctx);
   const media = new MediaService(ctx, vaults);
+  const release = new ReleaseService(ctx, vaults);
+  const inheritance = new InheritanceService(ctx, vaults);
 
   app.decorateRequest("auth", null);
   app.decorateRequest("ipHash", "");
@@ -75,6 +80,7 @@ export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandl
   await app.register(accountRoutes(ctx, auth.sessions, vaults));
   await app.register(vaultRoutes(vaults, auth.sessions));
   await app.register(mediaRoutes(media));
+  await app.register(releaseRoutes(release, inheritance, auth.sessions));
 
   return { app, ctx };
 }

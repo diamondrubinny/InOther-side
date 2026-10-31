@@ -21,6 +21,7 @@ export interface AuthenticatedSession {
     locale: string;
     emailVerified: boolean;
     mfaEnabled: boolean;
+    role: "user" | "staff";
   };
 }
 
@@ -59,6 +60,7 @@ export class SessionService {
           locale: users.locale,
           emailVerifiedAt: users.emailVerifiedAt,
           mfaEnabledAt: users.mfaEnabledAt,
+          role: users.role,
         },
       })
       .from(sessions)
@@ -89,6 +91,7 @@ export class SessionService {
         locale: row.user.locale,
         emailVerified: row.user.emailVerifiedAt !== null,
         mfaEnabled: row.user.mfaEnabledAt !== null,
+        role: row.user.role,
       },
     };
   }

@@ -166,5 +166,5 @@ export function createStorage(env: Env): ObjectStorage {
 export const mediaKeys = {
   quarantine: (vaultId: string, assetId: string) => `quarantine/${vaultId}/${assetId}`,
   content: (vaultId: string, assetId: string) => `media/${vaultId}/${assetId}`,
-  vaultPrefixes: (vaultId: string) => [`quarantine/${vaultId}/`, `media/${vaultId}/`],
+  vaultPrefixes: (vaultId: string) => [`quarantine/${vaultId}/`, `media/${vaultId}/`, `release/${vaultId}/`],
 };

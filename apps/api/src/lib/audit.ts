@@ -43,7 +43,19 @@ export type AuditAction =
   | "media.rejected"
   | "media.infected"
   | "media.scan_failed"
-  | "account.profile_updated";
+  | "account.profile_updated"
+  | "invitation.sent"
+  | "invitation.accepted"
+  | "release.reported"
+  | "release.document_uploaded"
+  | "release.document_infected"
+  | "release.document_viewed"
+  | "release.approved"
+  | "release.rejected"
+  | "release.second_confirmed"
+  | "release.cancelled"
+  | "release.completed"
+  | "inheritance.viewed";
 
 export interface AuditEntry {
   actorId: string | null;

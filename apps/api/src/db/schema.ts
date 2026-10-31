@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
@@ -30,6 +31,8 @@ const timestamps = {
 // Identity & sessions
 // ---------------------------------------------------------------------------
 
+export const userRoleEnum = pgEnum("user_role", ["user", "staff"]);
+
 export const users = pgTable(
   "users",
   {
@@ -47,6 +50,8 @@ export const users = pgTable(
     failedLoginCount: integer("failed_login_count").notNull().default(0),
     lockedUntil: timestamp("locked_until", { withTimezone: true }),
     passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }).notNull().defaultNow(),
+    /** "staff" may review death certificates. Granted manually (never via the API). */
+    role: userRoleEnum("role").notNull().default("user"),
     ...timestamps,
   },
   (t) => [uniqueIndex("users_email_uq").on(t.email)],
@@ -217,6 +222,10 @@ export const vaultBeneficiaries = pgTable(
     relation: relationEnum("relation").notNull(),
     notifyBeforeDeath: boolean("notify_before_death").notNull().default(false),
     status: beneficiaryStatusEnum("status").notNull().default("designated"),
+    /** Linked account once the beneficiary accepts an invitation (email must match). */
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    invitedAt: timestamp("invited_at", { withTimezone: true }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [index("beneficiaries_vault_idx").on(t.vaultId)],
@@ -235,6 +244,9 @@ export const vaultExecutors = pgTable(
     emailEnc: bytea("email_enc").notNull(),
     relation: relationEnum("relation").notNull(),
     status: executorStatusEnum("status").notNull().default("designated"),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    invitedAt: timestamp("invited_at", { withTimezone: true }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [index("executors_vault_idx").on(t.vaultId)],
@@ -336,4 +348,77 @@ export const mediaAssets = pgTable(
     ...timestamps,
   },
   (t) => [index("media_vault_idx").on(t.vaultId, t.createdAt), index("media_status_idx").on(t.status, t.createdAt)],
+);
+
+// ---------------------------------------------------------------------------
+// Invitations & release after death
+// ---------------------------------------------------------------------------
+
+export const invitationKindEnum = pgEnum("invitation_kind", ["executor", "beneficiary"]);
+
+/** Email invitations for executors / beneficiaries. Only the token hash is stored. */
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => legacyVaults.id, { onDelete: "cascade" }),
+    kind: invitationKindEnum("kind").notNull(),
+    /** vault_executors.id or vault_beneficiaries.id */
+    personId: uuid("person_id").notNull(),
+    tokenHash: bytea("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("invitations_token_uq").on(t.tokenHash), index("invitations_person_idx").on(t.personId)],
+);
+
+export const releaseStatusEnum = pgEnum("release_status", [
+  "awaiting_document",
+  "pending_review",
+  "awaiting_second_confirmation",
+  "waiting_period",
+  "released",
+  "rejected",
+  "cancelled",
+]);
+
+/**
+ * A report that the legator has died, filed by a confirmed executor.
+ * Flow: awaiting_document -> pending_review (staff) -> [awaiting_second_confirmation]
+ *       -> waiting_period (legator can still cancel) -> released.
+ */
+export const releaseRequests = pgTable(
+  "release_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => legacyVaults.id, { onDelete: "cascade" }),
+    reportedByExecutorId: uuid("reported_by_executor_id").references(() => vaultExecutors.id, { onDelete: "set null" }),
+    status: releaseStatusEnum("status").notNull().default("awaiting_document"),
+    dateOfDeath: date("date_of_death").notNull(),
+    documentMime: text("document_mime"),
+    documentSize: integer("document_size"),
+    reviewedByUserId: uuid("reviewed_by_user_id"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    /** Machine-readable reason only (e.g. document_unreadable); never free text about the person. */
+    reviewReason: text("review_reason"),
+    secondConfirmedByExecutorId: uuid("second_confirmed_by_executor_id").references(() => vaultExecutors.id, { onDelete: "set null" }),
+    waitUntil: timestamp("wait_until", { withTimezone: true }),
+    cancelTokenHash: bytea("cancel_token_hash").notNull(),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index("release_vault_idx").on(t.vaultId),
+    index("release_status_idx").on(t.status),
+    // At most one open request per vault.
+    uniqueIndex("release_one_open_per_vault")
+      .on(t.vaultId)
+      .where(sql`${t.status} in ('awaiting_document', 'pending_review', 'awaiting_second_confirmation', 'waiting_period')`),
+  ],
 );
