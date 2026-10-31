@@ -1,0 +1,22 @@
+{
+  "name": "inother-side",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build:shared": "pnpm --filter @inother/shared build",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm build:shared && pnpm -r typecheck",
+    "test": "pnpm build:shared && pnpm -r test",
+    "dev:api": "pnpm build:shared && pnpm --filter @inother/api dev",
+    "db:migrate": "pnpm --filter @inother/api db:migrate",
+    "audit": "pnpm audit --audit-level=moderate"
+  },
+  "pnpm": {
+    "overrides": {
+      "@esbuild-kit/core-utils>esbuild": "0.25.12"
+    }
+  }
+}

@@ -1,0 +1,69 @@
+import Fastify, { type FastifyInstance } from "fastify";
+import { randomUUID } from "node:crypto";
+import type { Env } from "./config/env.js";
+import { createContext, type AppContext, type ContextOverrides } from "./context.js";
+import { createDb, type DbHandle } from "./db/client.js";
+import { registerErrorHandling } from "./http/error-handler.js";
+import { registerSecurity } from "./http/security.js";
+import { accountRoutes } from "./modules/account/account.routes.js";
+import { authRoutes } from "./modules/auth/auth.routes.js";
+import { AuthService } from "./modules/auth/auth.service.js";
+import { vaultRoutes } from "./modules/vault/vault.routes.js";
+import { VaultService } from "./modules/vault/vault.service.js";
+
+export interface BuiltApp {
+  app: FastifyInstance;
+  ctx: AppContext;
+}
+
+export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandle?: DbHandle } = {}): Promise<BuiltApp> {
+  const app = Fastify({
+    trustProxy: env.TRUST_PROXY,
+    bodyLimit: env.BODY_LIMIT_BYTES,
+    genReqId: () => randomUUID(),
+    requestIdHeader: false,
+    logger: {
+      level: env.LOG_LEVEL,
+      transport: env.NODE_ENV === "development" ? { target: "pino-pretty" } : undefined,
+      // Never log credentials, cookies or bodies.
+      redact: {
+        paths: ["req.headers.cookie", "req.headers.authorization", 'res.headers["set-cookie"]', "*.password", "*.token"],
+        censor: "[redacted]",
+      },
+      serializers: {
+        // Drop client IP and query strings (may contain tokens) from request logs.
+        req: (req) => ({ id: req.id, method: req.method, url: req.url.split("?")[0] }),
+      },
+    },
+  });
+
+  const dbHandle = overrides.dbHandle ?? createDb(env.DATABASE_URL, env.DATABASE_POOL_MAX);
+  const ctx = createContext(env, dbHandle.db, app.log, overrides);
+  if (!overrides.dbHandle) app.addHook("onClose", async () => dbHandle.close());
+
+  const auth = new AuthService(ctx);
+  const vaults = new VaultService(ctx);
+
+  app.decorateRequest("auth", null);
+  app.decorateRequest("ipHash", "");
+  // ipHash must exist before the rate limiter computes its key, so this hook is added first.
+  app.addHook("onRequest", async (request) => {
+    request.ipHash = ctx.hmac.hex(request.ip, "ip");
+  });
+
+  registerErrorHandling(app);
+  await registerSecurity(app, ctx);
+
+  app.addHook("preHandler", async (request) => {
+    const token = request.cookies[env.SESSION_COOKIE_NAME];
+    request.auth = token ? await auth.sessions.validate(token) : null;
+  });
+
+  app.get("/health", { config: { rateLimit: false } }, async () => ({ status: "ok" }));
+
+  await app.register(authRoutes(ctx, auth));
+  await app.register(accountRoutes(ctx, auth.sessions, vaults));
+  await app.register(vaultRoutes(vaults, auth.sessions));
+
+  return { app, ctx };
+}
