@@ -8,6 +8,7 @@ import { errorMessage } from "@/i18n";
 import { useI18n } from "@/i18n/client";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { hasPendingInvite } from "@/lib/pending-invite";
 
 type LoginResponse = { status: "authenticated" } | { status: "mfa_required"; challengeToken: string };
 
@@ -26,7 +27,8 @@ export default function LoginPage() {
 
   const done = async () => {
     await refresh();
-    router.push(`/${locale}/app`);
+    // Came here from an invitation link? Go back to finish accepting it.
+    router.push(hasPendingInvite() ? `/${locale}/invitation` : `/${locale}/app`);
   };
 
   const fail = (err: unknown) => setError(errorMessage(messages, err instanceof ApiError ? err.code : undefined));

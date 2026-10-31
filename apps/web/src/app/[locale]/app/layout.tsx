@@ -7,6 +7,7 @@ import { Loading } from "@/components/ui";
 import { useI18n } from "@/i18n/client";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { ReleaseAlert } from "@/components/ReleaseAlert";
 
 /**
  * Personal area. Data is fetched in the browser with the HttpOnly session cookie and is never
@@ -39,6 +40,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: `${base}/stories`, label: n.stories },
     { href: `${base}/media`, label: n.media },
     { href: `${base}/people`, label: n.people },
+    { href: `${base}/executor`, label: messages.release.navExecutor },
+    { href: `${base}/inheritances`, label: messages.release.navInheritances },
+    ...(me.role === "staff" ? [{ href: `${base}/review`, label: messages.release.navReview }] : []),
     { href: `${base}/settings`, label: n.settings },
   ];
   const isCurrent = (href: string) => (href === base ? pathname === base : pathname.startsWith(href));
@@ -70,7 +74,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </li>
         </ul>
       </nav>
-      <div>{children}</div>
+      <div className="stack">
+        <ReleaseAlert />
+        {children}
+      </div>
     </div>
   );
 }

@@ -8,6 +8,7 @@ export interface Me {
   dir: "rtl" | "ltr";
   emailVerified: boolean;
   mfaEnabled: boolean;
+  role: "user" | "staff";
   reauthValid: boolean;
 }
 
@@ -34,7 +35,7 @@ export interface Person {
   email: string;
   relation: Relation;
   notifyBeforeDeath?: boolean;
-  status: string;
+  status: "designated" | "invited" | "confirmed" | "accepted" | "declined" | "removed";
 }
 
 export interface StoryMeta {

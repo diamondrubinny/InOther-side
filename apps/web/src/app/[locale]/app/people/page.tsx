@@ -23,6 +23,18 @@ function PersonSection({ kind }: { kind: Kind }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<Person | null>(null);
   const headingId = `${kind}-title`;
+  const [notice, setNotice] = useState<string | null>(null);
+  const invite = async (p: Person) => {
+    setNotice(null);
+    setFormError(null);
+    try {
+      await api("POST", `/vault/${kind}/${p.id}/invite`);
+      setNotice(`${messages.release.inviteSent}: ${p.name}`);
+      await reload();
+    } catch (err) {
+      setFormError(errorMessage(messages, err instanceof ApiError ? err.code : undefined));
+    }
+  };
 
   const add = async (e: FormEvent) => {
     e.preventDefault();
@@ -48,6 +60,7 @@ function PersonSection({ kind }: { kind: Kind }) {
     <section className="card stack" aria-labelledby={headingId}>
       <h2 id={headingId}>{isBeneficiary ? t.beneficiaries : t.executors}</h2>
       <p className="muted">{isBeneficiary ? t.beneficiariesHelp : t.executorsHelp}</p>
+      {notice && <Alert kind="success">{notice}</Alert>}
       {loading && <Loading />}
       {error && <Alert kind="error">{errorMessage(messages, error.code)}</Alert>}
       {data && data.items.length === 0 && <EmptyState>{isBeneficiary ? t.emptyBeneficiaries : t.emptyExecutors}</EmptyState>}
@@ -56,12 +69,21 @@ function PersonSection({ kind }: { kind: Kind }) {
           {data.items.map((p) => (
             <li key={p.id} className="row spread">
               <span>
-                <strong>{p.name}</strong> · {t.relations[p.relation]} · <span className="ltr">{p.email}</span>
+                <strong>{p.name}</strong> · {t.relations[p.relation]} · <span className="ltr">{p.email}</span>{" "}
+                <span className={`badge ${p.status === "confirmed" || p.status === "accepted" ? "ok" : ""}`}>{messages.release.personStatuses[p.status]}</span>
               </span>
+              <span className="row">
+              {p.status !== "confirmed" && p.status !== "accepted" && (
+                <Button small variant="secondary" onClick={() => void invite(p)}>
+                  {p.status === "invited" ? messages.release.resend : messages.release.invite}
+                  <span className="visually-hidden">: {p.name}</span>
+                </Button>
+              )}
               <Button small variant="danger" onClick={() => setToDelete(p)}>
                 {messages.common.delete}
                 <span className="visually-hidden">: {p.name}</span>
               </Button>
+              </span>
             </li>
           ))}
         </ul>
