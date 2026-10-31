@@ -422,3 +422,50 @@ export const releaseRequests = pgTable(
       .where(sql`${t.status} in ('awaiting_document', 'pending_review', 'awaiting_second_confirmation', 'waiting_period')`),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// AI persona
+// ---------------------------------------------------------------------------
+
+export const voiceStatusEnum = pgEnum("voice_status", ["none", "processing", "ready", "failed"]);
+
+/** Legator-controlled persona configuration (portrait, mouth anchor, cloned voice). */
+export const personaSettings = pgTable("persona_settings", {
+  vaultId: uuid("vault_id")
+    .primaryKey()
+    .references(() => legacyVaults.id, { onDelete: "cascade" }),
+  portraitMediaId: uuid("portrait_media_id").references(() => mediaAssets.id, { onDelete: "set null" }),
+  /** Mouth position on the portrait, in per-mille of width/height (0-1000). */
+  mouthX: integer("mouth_x").notNull().default(500),
+  mouthY: integer("mouth_y").notNull().default(680),
+  /** Provider reference of the cloned voice, encrypted with the master key. */
+  voiceRefEnc: bytea("voice_ref_enc"),
+  voiceStatus: voiceStatusEnum("voice_status").notNull().default("none"),
+  sessionsLimit: integer("sessions_limit").notNull().default(8),
+  minutesLimit: integer("minutes_limit").notNull().default(30),
+  ...timestamps,
+});
+
+export const personaModeEnum = pgEnum("persona_mode", ["preview", "beneficiary"]);
+export const personaKindEnum = pgEnum("persona_kind", ["regular", "farewell"]);
+
+/** Conversation metadata only. Transcripts are NOT stored (privacy by design). */
+export const personaSessions = pgTable(
+  "persona_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => legacyVaults.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mode: personaModeEnum("mode").notNull(),
+    kind: personaKindEnum("kind").notNull().default("regular"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    turns: integer("turns").notNull().default(0),
+    safetyFlag: boolean("safety_flag").notNull().default(false),
+  },
+  (t) => [index("persona_sessions_user_idx").on(t.userId, t.vaultId)],
+);

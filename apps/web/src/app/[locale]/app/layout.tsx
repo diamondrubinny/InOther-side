@@ -40,6 +40,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: `${base}/stories`, label: n.stories },
     { href: `${base}/media`, label: n.media },
     { href: `${base}/people`, label: n.people },
+    { href: `${base}/persona-settings`, label: messages.persona.navPersona },
     { href: `${base}/executor`, label: messages.release.navExecutor },
     { href: `${base}/inheritances`, label: messages.release.navInheritances },
     ...(me.role === "staff" ? [{ href: `${base}/review`, label: messages.release.navReview }] : []),

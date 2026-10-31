@@ -18,7 +18,9 @@ export default function ResetPasswordPage() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => setToken(readHashToken()), []);
+  useEffect(() => {
+    setToken(readHashToken());
+  }, []);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();

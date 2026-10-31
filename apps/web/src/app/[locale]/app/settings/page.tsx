@@ -312,15 +312,24 @@ function PrivacySection() {
   const [fb, setFb] = useState<Feedback>(null);
   const [confirm, setConfirm] = useState<"vault" | "account" | null>(null);
 
-  const active = (purpose: string) => (consents.data?.items ?? []).some((c) => c.purpose === purpose && c.withdrawnAt === null);
+  // Optimistic state so the checkbox reflects the click immediately (rolled back on error).
+  const [pendingConsent, setPendingConsent] = useState<Record<string, boolean>>({});
+  const active = (purpose: string) =>
+    pendingConsent[purpose] ?? (consents.data?.items ?? []).some((c) => c.purpose === purpose && c.withdrawnAt === null);
   const fail = (err: unknown) => setFb({ kind: "error", text: errorMessage(messages, err instanceof ApiError ? err.code : undefined) });
 
   const toggle = async (purpose: string, granted: boolean) => {
+    setPendingConsent((p) => ({ ...p, [purpose]: granted }));
     try {
       await api("POST", "/me/consents", { purpose, granted });
       await consents.reload();
     } catch (err) {
       fail(err);
+    } finally {
+      setPendingConsent((p) => {
+        const { [purpose]: _, ...rest } = p;
+        return rest;
+      });
     }
   };
 

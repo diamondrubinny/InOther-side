@@ -17,7 +17,9 @@ export default function CancelReleasePage() {
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => setToken(readHashToken()), []);
+  useEffect(() => {
+    setToken(readHashToken());
+  }, []);
 
   return (
     <div className="container section narrow">

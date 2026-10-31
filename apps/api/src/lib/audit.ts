@@ -55,7 +55,12 @@ export type AuditAction =
   | "release.second_confirmed"
   | "release.cancelled"
   | "release.completed"
-  | "inheritance.viewed";
+  | "inheritance.viewed"
+  | "persona.session_started"
+  | "persona.safety_event"
+  | "persona.settings_updated"
+  | "persona.voice_cloned"
+  | "persona.voice_deleted";
 
 export interface AuditEntry {
   actorId: string | null;

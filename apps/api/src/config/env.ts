@@ -63,6 +63,15 @@ const envSchema = z
     MEDIA_QUOTA_BYTES: z.coerce.number().int().min(1).default(20 * 1024 * 1024 * 1024),
     MEDIA_MAX_FILES: z.coerce.number().int().min(1).default(1000),
 
+    /**
+     * AI persona. "mock" is deterministic and offline (dev/tests); "anthropic" calls Claude
+     * (credentials via ANTHROPIC_API_KEY or `ant auth login`); "none" disables the persona.
+     */
+    LLM_PROVIDER: z.enum(["none", "mock", "anthropic"]).default("mock"),
+    PERSONA_MODEL: z.string().default("claude-opus-5-5"),
+    /** Voice cloning / TTS. Real vendors plug in behind VoiceProvider (verify ToS + DPA first). */
+    VOICE_PROVIDER: z.enum(["none", "mock"]).default("mock"),
+
     RATE_LIMIT_GLOBAL_PER_MINUTE: z.coerce.number().int().min(10).default(300),
     BODY_LIMIT_BYTES: z.coerce.number().int().min(1024).max(10 * 1024 * 1024).default(256 * 1024),
   })
@@ -85,6 +94,9 @@ const envSchema = z
       }
       if (env.SCANNER !== "clamd") {
         ctx.addIssue({ code: "custom", path: ["SCANNER"], message: "production requires the clamd malware scanner" });
+      }
+      if (env.LLM_PROVIDER === "mock" || env.VOICE_PROVIDER === "mock") {
+        ctx.addIssue({ code: "custom", path: ["LLM_PROVIDER"], message: "mock AI providers are not allowed in production" });
       }
       if (!env.SESSION_COOKIE_NAME.startsWith("__Host-")) {
         ctx.addIssue({ code: "custom", path: ["SESSION_COOKIE_NAME"], message: "production requires a __Host- cookie" });

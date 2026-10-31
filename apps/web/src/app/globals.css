@@ -205,3 +205,18 @@ dialog::backdrop { background: rgb(0 0 0 / 45%); }
 .qr { background: #fff; padding: 0.5rem; border-radius: 8px; inline-size: 200px; block-size: 200px; }
 .recovery-codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem 1rem; font-family: ui-monospace, monospace; font-size: 1.05rem; }
 .legal h2 { margin-block-start: 1.5rem; }
+
+/* Persona call */
+.call { display: grid; gap: 1rem; }
+@media (min-width: 900px) { .call { grid-template-columns: minmax(280px, 420px) 1fr; align-items: start; } }
+.avatar-wrap { position: relative; }
+.avatar-canvas { inline-size: 100%; block-size: auto; border-radius: var(--radius); background: #1d2125; display: block; }
+.ai-badge { position: absolute; inset-block-start: 0.6rem; inset-inline-start: 0.6rem; background: rgb(0 0 0 / 70%); color: #fff; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.85rem; font-weight: 600; }
+.transcript { max-block-size: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; }
+.bubble { padding: 0.6rem 0.8rem; border-radius: 12px; max-inline-size: 85%; white-space: pre-wrap; }
+.bubble.me { align-self: flex-end; background: var(--primary); color: var(--on-primary); }
+.bubble.persona { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); }
+.bubble.system { align-self: center; background: var(--warning-bg); border: 1px solid var(--warning); }
+.portrait-picker { position: relative; display: inline-block; cursor: crosshair; }
+.portrait-picker img { max-inline-size: 320px; display: block; border-radius: 8px; }
+.mouth-dot { position: absolute; inline-size: 14px; block-size: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #e0245e; border: 2px solid #fff; pointer-events: none; }

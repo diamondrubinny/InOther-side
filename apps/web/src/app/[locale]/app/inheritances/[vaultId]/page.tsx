@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Dialog } from "@/components/Dialog";
@@ -14,7 +15,7 @@ import { useDocumentTitle } from "@/lib/use-title";
 const UUID = /^[0-9a-f-]{36}$/i;
 
 export default function InheritancePage() {
-  const { messages } = useI18n();
+  const { locale, messages } = useI18n();
   const t = messages.release;
   const { vaultId } = useParams<{ vaultId: string }>();
   const valid = UUID.test(vaultId);
@@ -36,6 +37,7 @@ export default function InheritancePage() {
     <div className="stack">
       <h1>{summary.data.legatorName}</h1>
       <p className="muted">{t.griefNote}</p>
+      <div><Link className="btn" href={`/${locale}/app/persona/${vaultId}`}>{messages.persona.talk}</Link></div>
       <p className="muted small">{messages.common.aiNotice}</p>
       {summary.data.openingMessage && (
         <section className="card" aria-labelledby="opening">

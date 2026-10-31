@@ -9,6 +9,8 @@ import { registerSecurity } from "./http/security.js";
 import { accountRoutes } from "./modules/account/account.routes.js";
 import { mediaRoutes } from "./modules/media/media.routes.js";
 import { MediaService } from "./modules/media/media.service.js";
+import { personaRoutes } from "./modules/persona/persona.routes.js";
+import { PersonaService } from "./modules/persona/persona.service.js";
 import { InheritanceService } from "./modules/release/inheritance.service.js";
 import { releaseRoutes } from "./modules/release/release.routes.js";
 import { ReleaseService } from "./modules/release/release.service.js";
@@ -53,6 +55,7 @@ export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandl
   const media = new MediaService(ctx, vaults);
   const release = new ReleaseService(ctx, vaults);
   const inheritance = new InheritanceService(ctx, vaults);
+  const persona = new PersonaService(ctx, vaults, ctx.llm, ctx.voice);
 
   app.decorateRequest("auth", null);
   app.decorateRequest("ipHash", "");
@@ -77,10 +80,11 @@ export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandl
   app.get("/health", { config: { rateLimit: false } }, async () => ({ status: "ok" }));
 
   await app.register(authRoutes(ctx, auth));
-  await app.register(accountRoutes(ctx, auth.sessions, vaults));
+  await app.register(accountRoutes(ctx, auth.sessions, vaults, persona));
   await app.register(vaultRoutes(vaults, auth.sessions));
   await app.register(mediaRoutes(media));
   await app.register(releaseRoutes(release, inheritance, auth.sessions));
+  await app.register(personaRoutes(persona));
 
   return { app, ctx };
 }

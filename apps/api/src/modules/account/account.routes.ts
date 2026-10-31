@@ -9,12 +9,13 @@ import { writeAudit } from "../../lib/audit.js";
 import { parse } from "../../lib/validate.js";
 import type { SessionService } from "../auth/session.service.js";
 import type { VaultService } from "../vault/vault.service.js";
+import type { PersonaService } from "../persona/persona.service.js";
 
 /** Consents a user may grant or withdraw themselves (terms consent is withdrawn by deleting the account). */
 const optionalPurposes = ["voice_cloning", "avatar_creation", "ai_processing"] as const;
 const consentChangeSchema = z.object({ purpose: z.enum(optionalPurposes), granted: z.boolean() });
 
-export function accountRoutes(ctx: AppContext, sessionService: SessionService, vaults: VaultService) {
+export function accountRoutes(ctx: AppContext, sessionService: SessionService, vaults: VaultService, persona: PersonaService) {
   const isRecent = sessionService.isRecentlyReauthenticated.bind(sessionService);
 
   return async function (app: FastifyInstance): Promise<void> {
@@ -94,6 +95,8 @@ export function accountRoutes(ctx: AppContext, sessionService: SessionService, v
           metadata: { purpose },
         });
       });
+      // Withdrawing voice-cloning consent deletes the cloned voice (also at the provider).
+      if (purpose === "voice_cloning" && !granted) await persona.deleteVoiceForUser(auth.userId, request.ipHash);
       return { purpose, granted };
     });
 
