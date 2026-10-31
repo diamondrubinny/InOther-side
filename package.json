@@ -7,17 +7,20 @@
   },
   "scripts": {
     "build:shared": "pnpm --filter @inother/shared build",
-    "build": "pnpm -r build",
+    "build": "pnpm build:shared && pnpm -r build",
     "typecheck": "pnpm build:shared && pnpm -r typecheck",
     "test": "pnpm build:shared && pnpm -r test",
     "dev:api": "pnpm build:shared && pnpm --filter @inother/api dev",
     "db:migrate": "pnpm --filter @inother/api db:migrate",
     "audit": "pnpm audit --audit-level=moderate",
-    "dev:worker": "pnpm build:shared && pnpm --filter @inother/api dev:worker"
+    "dev:worker": "pnpm build:shared && pnpm --filter @inother/api dev:worker",
+    "dev:web": "pnpm build:shared && pnpm --filter @inother/web dev",
+    "e2e": "pnpm build && pnpm --filter @inother/web e2e"
   },
   "pnpm": {
     "overrides": {
-      "@esbuild-kit/core-utils>esbuild": "0.25.12"
+      "@esbuild-kit/core-utils>esbuild": "0.25.12",
+      "postcss": "8.5.30"
     }
   }
 }

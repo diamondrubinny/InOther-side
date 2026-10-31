@@ -9,3 +9,7 @@ coverage/
 .turbo/
 .next/
 var/
+*.tsbuildinfo
+test-results/
+playwright-report/
+.env.local
