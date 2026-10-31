@@ -34,7 +34,16 @@ export type AuditAction =
   | "vault.story.updated"
   | "vault.story.deleted"
   | "vault.answer.saved"
-  | "vault.answer.deleted";
+  | "vault.answer.deleted"
+  | "media.created"
+  | "media.uploaded"
+  | "media.updated"
+  | "media.deleted"
+  | "media.clean"
+  | "media.rejected"
+  | "media.infected"
+  | "media.scan_failed"
+  | "account.profile_updated";
 
 export interface AuditEntry {
   actorId: string | null;

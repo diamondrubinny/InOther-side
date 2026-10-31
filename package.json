@@ -12,7 +12,8 @@
     "test": "pnpm build:shared && pnpm -r test",
     "dev:api": "pnpm build:shared && pnpm --filter @inother/api dev",
     "db:migrate": "pnpm --filter @inother/api db:migrate",
-    "audit": "pnpm audit --audit-level=moderate"
+    "audit": "pnpm audit --audit-level=moderate",
+    "dev:worker": "pnpm build:shared && pnpm --filter @inother/api dev:worker"
   },
   "pnpm": {
     "overrides": {

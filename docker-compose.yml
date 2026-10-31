@@ -15,6 +15,18 @@ services:
       interval: 5s
       retries: 10
 
+  redis:
+    image: redis:7.4-alpine
+    ports: ["127.0.0.1:6379:6379"]
+
+  # ClamAV daemon. First start downloads signatures (several minutes, ~300MB).
+  # StreamMaxLength must cover the largest allowed upload (video: 2GB).
+  clamav:
+    image: clamav/clamav:1.4
+    environment:
+      CLAMD_CONF_StreamMaxLength: 2100M
+    ports: ["127.0.0.1:3310:3310"]
+
   # Catches outgoing email in development: UI at http://localhost:8025
   mailpit:
     image: axllent/mailpit:v1.27

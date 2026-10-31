@@ -39,6 +39,30 @@ const envSchema = z
     SMTP_URL: z.string().optional(),
     MAIL_FROM: z.string().default("InOther-side <no-reply@localhost>"),
 
+    /** Object storage for media. "local" is for development and tests only. */
+    STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
+    STORAGE_LOCAL_DIR: z.string().default("./var/storage"),
+    S3_BUCKET: z.string().optional(),
+    S3_REGION: z.string().default("eu-central-1"),
+    /** For S3-compatible providers (e.g. MinIO, Cloudflare R2). Leave empty for AWS. */
+    S3_ENDPOINT: z.string().url().optional(),
+    S3_FORCE_PATH_STYLE: booleanString.default(false),
+    /** Optional KMS key for server-side encryption (in addition to our own encryption). */
+    S3_SSE_KMS_KEY_ID: z.string().optional(),
+
+    /** Redis for the media-processing queue (BullMQ). */
+    REDIS_URL: z.string().default("redis://127.0.0.1:6379"),
+
+    /** Malware scanner. "noop" marks files clean WITHOUT scanning and is refused in production. */
+    SCANNER: z.enum(["clamd", "noop"]).default("clamd"),
+    CLAMD_HOST: z.string().default("127.0.0.1"),
+    CLAMD_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
+    CLAMD_TIMEOUT_MS: z.coerce.number().int().min(1000).default(120_000),
+
+    /** Per-vault media quota. */
+    MEDIA_QUOTA_BYTES: z.coerce.number().int().min(1).default(20 * 1024 * 1024 * 1024),
+    MEDIA_MAX_FILES: z.coerce.number().int().min(1).default(1000),
+
     RATE_LIMIT_GLOBAL_PER_MINUTE: z.coerce.number().int().min(10).default(300),
     BODY_LIMIT_BYTES: z.coerce.number().int().min(1024).max(10 * 1024 * 1024).default(256 * 1024),
   })
@@ -56,9 +80,18 @@ const envSchema = z
       if (!env.WEB_ORIGIN.startsWith("https://")) {
         ctx.addIssue({ code: "custom", path: ["WEB_ORIGIN"], message: "production requires an https origin" });
       }
+      if (env.STORAGE_DRIVER !== "s3") {
+        ctx.addIssue({ code: "custom", path: ["STORAGE_DRIVER"], message: "production requires s3 storage" });
+      }
+      if (env.SCANNER !== "clamd") {
+        ctx.addIssue({ code: "custom", path: ["SCANNER"], message: "production requires the clamd malware scanner" });
+      }
       if (!env.SESSION_COOKIE_NAME.startsWith("__Host-")) {
         ctx.addIssue({ code: "custom", path: ["SESSION_COOKIE_NAME"], message: "production requires a __Host- cookie" });
       }
+    }
+    if (env.STORAGE_DRIVER === "s3" && !env.S3_BUCKET) {
+      ctx.addIssue({ code: "custom", path: ["S3_BUCKET"], message: "required when STORAGE_DRIVER=s3" });
     }
     if (env.MAIL_TRANSPORT === "smtp" && !env.SMTP_URL) {
       ctx.addIssue({ code: "custom", path: ["SMTP_URL"], message: "required when MAIL_TRANSPORT=smtp" });

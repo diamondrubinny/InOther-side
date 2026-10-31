@@ -5,7 +5,13 @@
 - אפיון מלא: [`docs/PLAN.md`](docs/PLAN.md)
 - תוכנית בנייה וסטטוס: [`docs/BUILD.md`](docs/BUILD.md)
 
-> **סטטוס:** שלב 1 (שרת API: אימות משתמשים וכספת מורשת) הושלם. אין עדיין ממשק Web.
+> **סטטוס:** שלבים 1–2 הושלמו: שרת API עם אימות משתמשים, כספת מורשת, העלאת קבצים מאובטחת ו-6 שפות. אין עדיין ממשק Web.
+
+## שפות
+עברית (ברירת מחדל), English, العربية, Русский, Français, Español. עברית וערבית מוגדרות RTL.
+סדר העדיפויות לבחירת שפה: `?locale=` ← השפה שנשמרה בפרופיל ← כותרת `Accept-Language` של הדפדפן.
+מיילים, קטלוג השאלות וייצוא הנתונים מתורגמים. ממשק ה-API מחזיר קודי שגיאה (באנגלית) שהקליינט מתרגם.
+> ⚠️ התרגומים לערבית, רוסית, צרפתית וספרדית הם טיוטה, ודורשים בדיקה של דוברי שפת אם לפני השקה.
 
 ## מבנה
 
@@ -15,7 +21,8 @@ apps/api/            Fastify + TypeScript API
   src/db/            סכמת Drizzle, חיבור, מיגרציות
   src/http/          אבטחה (headers, CORS, Origin/CSRF, rate limit), שגיאות, guards
   src/lib/           הצפנה, סיסמאות, TOTP, מיילים, audit
-  src/modules/       auth, account, vault (routes → service → db)
+  src/modules/       auth, account, vault, media (routes → service → db)
+  src/worker.ts      תהליך רקע: בדיקת קבצים, סריקת וירוסים, הצפנה, ניקוי
   drizzle/           מיגרציות SQL
   test/              בדיקות אינטגרציה מול PostgreSQL אמיתי
 packages/shared/     סכמות Zod וקטלוג שאלות, משותפים לשרת ולקליינט
@@ -23,17 +30,18 @@ packages/shared/     סכמות Zod וקטלוג שאלות, משותפים לש
 
 ## דרישות
 - Node.js 22+, pnpm 10
-- PostgreSQL 16 (מקומי, או `docker compose up -d`)
+- PostgreSQL 16, Redis 7, ClamAV (מקומי, או `docker compose up -d`)
 
 ## התקנה והרצה
 
 ```bash
 pnpm install
-docker compose up -d                 # PostgreSQL + Mailpit (תופס מיילים: http://localhost:8025)
+docker compose up -d                 # PostgreSQL, Redis, ClamAV, Mailpit (מיילים: http://localhost:8025)
 cp .env.example apps/api/.env
 # מלא MASTER_KEY_BASE64 ו-HMAC_SECRET_BASE64:  openssl rand -base64 32
 pnpm db:migrate
 pnpm dev:api                         # http://localhost:4000/health
+pnpm dev:worker                      # בטרמינל נוסף: עיבוד קבצים
 ```
 
 לקבלת מיילים אמיתיים ב-Mailpit בזמן פיתוח: `MAIL_TRANSPORT=smtp` ו-`SMTP_URL=smtp://localhost:1025`.
@@ -41,12 +49,12 @@ pnpm dev:api                         # http://localhost:4000/health
 ## בדיקות
 
 ```bash
-pnpm test        # 43 בדיקות: יחידה + אינטגרציה (דורש DB בשם inother_test)
+pnpm test        # 83 בדיקות: יחידה + אינטגרציה (דורש DB בשם inother_test ו-Redis)
 pnpm typecheck
 pnpm audit       # סריקת חולשות בתלויות
 ```
 
-הבדיקות מכסות: מניעת חשיפת משתמשים קיימים (enumeration), נעילת חשבון, rate limiting, תפוגת sessions, CSRF/Origin, איפוס סיסמה, MFA (כולל replay וקודי שחזור), **IDOR בין משתמשים**, הצפנה ב-DB, קשירת ciphertext לשורה (AAD), מגבלות, ייצוא ומחיקה.
+הבדיקות מכסות: העלאת קבצים (קובץ הרצה שמתחזה לתמונה, HTML שמתחזה לאודיו, וירוס EICAR, נפילת סורק, הסרת מטא-דאטה מתמונות), תרגומים, מניעת חשיפת משתמשים קיימים (enumeration), נעילת חשבון, rate limiting, תפוגת sessions, CSRF/Origin, איפוס סיסמה, MFA (כולל replay וקודי שחזור), **IDOR בין משתמשים**, הצפנה ב-DB, קשירת ciphertext לשורה (AAD), מגבלות, ייצוא ומחיקה.
 
 ## API (שלב 1)
 
@@ -54,13 +62,14 @@ pnpm audit       # סריקת חולשות בתלויות
 
 | Method | Path | גישה |
 |---|---|---|
-| GET | `/health`, `/questions` | ציבורי |
+| GET | `/health`, `/locales`, `/questions` | ציבורי |
 | POST | `/auth/register`, `/auth/verify-email`, `/auth/login`, `/auth/login/mfa` | ציבורי + rate limit |
 | POST | `/auth/password-reset/request`, `/auth/password-reset/confirm` | ציבורי + rate limit |
 | POST | `/auth/logout`, `/auth/logout-all`, `/auth/resend-verification` | מחובר |
 | POST | `/auth/password/change`, `/auth/reauth` | 🔒 |
 | POST | `/auth/mfa/setup`, `/auth/mfa/confirm`, `/auth/mfa/disable` | 🔒🔁 |
-| GET | `/me`, `/me/sessions`, `/me/consents` | מחובר |
+| GET / PATCH | `/me` (כולל שינוי שפה) | מחובר |
+| GET | `/me/sessions`, `/me/consents` | מחובר |
 | POST | `/me/consents` | 🔒 |
 | GET / DELETE | `/me/export`, `/me` | 🔒🔁 |
 | POST / GET / PATCH | `/vault` | 🔒 |
@@ -68,6 +77,15 @@ pnpm audit       # סריקת חולשות בתלויות
 | CRUD | `/vault/beneficiaries[/:id]`, `/vault/executors[/:id]` | 🔒 |
 | CRUD | `/vault/stories[/:id]` | 🔒 |
 | GET / PUT / DELETE | `/vault/answers[/:questionId]` | 🔒 |
+| GET / POST | `/vault/media` (רשימה / שמירת מקום להעלאה) | 🔒 |
+| PUT | `/vault/media/:id/content` (העלאת הקובץ עצמו) | 🔒 |
+| GET / PATCH / DELETE | `/vault/media/:id` | 🔒 |
+| GET | `/vault/media/:id/content` (הורדה, רק לקבצים נקיים) | 🔒 |
+
+### העלאת קובץ
+1. `POST /vault/media` עם `{kind, contentType, sizeBytes, label?, storyId?}`. נבדקים סוג, גודל ומכסה.
+2. `PUT` של הקובץ ל-`uploadUrl` עם `Content-Type` ו-`Content-Length` זהים למה שהוצהר.
+3. הקובץ מוצפן כבר בזמן הקבלה ונכנס להסגר. ה-worker בודק את הסוג האמיתי לפי הבייטים, סורק ב-ClamAV, ובתמונות מקודד מחדש ומסיר מטא-דאטה (כולל מיקום GPS). רק אז הסטטוס משתנה ל-`clean` ואפשר להוריד את הקובץ.
 
 כל בקשה שמשנה מצב (POST/PUT/PATCH/DELETE) חייבת לכלול `Origin` זהה ל-`WEB_ORIGIN`.
 שגיאות מוחזרות בפורמט `{ "error": { "code", "requestId", "details?" } }` בלי פרטים פנימיים.
@@ -81,6 +99,7 @@ pnpm audit       # סריקת חולשות בתלויות
 - **HTTP:** ‏CSP `default-src 'none'`, HSTS, nosniff, no-store, CORS מוגבל, בדיקת Origin, הגבלת גודל בקשה, rate limit.
 - **לוגים:** בלי סיסמאות, cookies, IP גולמי או query strings. יומן audit שאי אפשר לערוך (trigger ב-DB).
 - **פרטיות:** הסכמות נפרדות לכל מטרה עם היסטוריה, ייצוא מלא בפורמט פתוח, ומחיקת חשבון מלאה.
+- **קבצים:** רשימת סוגים מותרים, אימות הסוג האמיתי לפי הבייטים, מגבלות גודל ומכסה, הסגר, סריקת ClamAV שנכשלת בצורה סגורה (בלי סריקה הקובץ לא יוגש), שמות אקראיים בלי שם הקובץ המקורי, הצפנת זרם (STREAM / AES-256-GCM) עם מפתח הכספת, והורדה תמיד כ-attachment.
 
 ## לפני פרודקשן (פתוח)
 ראה [`docs/BUILD.md`](docs/BUILD.md#לפני-פרודקשן-פתוח). בין היתר: KMS מנוהל, Redis ל-rate limit, RLS, בדיקת חדירות וייעוץ משפטי.

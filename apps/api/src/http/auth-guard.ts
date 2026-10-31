@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import type { Locale } from "@inother/shared";
 import type { AuthenticatedSession } from "../modules/auth/session.service.js";
 import { AppError, forbidden, unauthorized } from "../lib/errors.js";
 
@@ -7,6 +8,8 @@ declare module "fastify" {
     auth: AuthenticatedSession | null;
     /** HMAC of the client IP: lets us correlate abuse without storing raw IPs. */
     ipHash: string;
+    /** Resolved language: ?locale= query, else the signed-in user's preference, else Accept-Language. */
+    locale: Locale;
   }
 }
 

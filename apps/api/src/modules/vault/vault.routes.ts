@@ -1,7 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
-  QUESTION_TOPICS,
+  LOCALE_INFO,
+  SUPPORTED_LOCALES,
+  localizedCatalog,
+  textDirection,
   answerInputSchema,
   beneficiaryInputSchema,
   beneficiaryUpdateSchema,
@@ -28,8 +31,16 @@ export function vaultRoutes(vaults: VaultService, sessions: SessionService) {
   const isRecent = sessions.isRecentlyReauthenticated.bind(sessions);
 
   return async function (app: FastifyInstance): Promise<void> {
-    // Public catalog (no personal data).
-    app.get("/questions", async () => ({ topics: QUESTION_TOPICS }));
+    // Public endpoints (no personal data).
+    app.get("/locales", async () => ({
+      default: "he",
+      locales: SUPPORTED_LOCALES.map((code) => ({ code, ...LOCALE_INFO[code] })),
+    }));
+
+    app.get("/questions", async (request, reply) => {
+      reply.header("Content-Language", request.locale).header("Vary", "Accept-Language");
+      return { locale: request.locale, dir: textDirection(request.locale), topics: localizedCatalog(request.locale) };
+    });
 
     app.post("/vault", async (request, reply) => {
       const { userId } = requireVerified(request);
@@ -57,7 +68,7 @@ export function vaultRoutes(vaults: VaultService, sessions: SessionService) {
 
     app.get("/vault/export", { config: { rateLimit: { max: 5, timeWindow: "1 hour" } } }, async (request, reply) => {
       const { userId } = requireRecentReauth(request, isRecent);
-      const data = await vaults.export(userId, request.ipHash);
+      const data = await vaults.export(userId, request.ipHash, request.locale);
       reply.header("Content-Disposition", 'attachment; filename="legacy-export.json"');
       return data;
     });

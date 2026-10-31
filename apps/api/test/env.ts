@@ -18,6 +18,7 @@ export function testEnv(overrides: Record<string, string> = {}): Env {
     HMAC_SECRET_BASE64: randomBytes(32).toString("base64"),
     MAIL_TRANSPORT: "memory",
     RATE_LIMIT_GLOBAL_PER_MINUTE: "10000",
+    SCANNER: "noop",
     ...overrides,
   });
 }

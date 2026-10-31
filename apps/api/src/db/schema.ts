@@ -1,4 +1,5 @@
 import {
+  bigint,
   boolean,
   customType,
   date,
@@ -288,4 +289,51 @@ export const guidedAnswers = pgTable(
     ...timestamps,
   },
   (t) => [uniqueIndex("answers_vault_question_uq").on(t.vaultId, t.questionId)],
+);
+
+// ---------------------------------------------------------------------------
+// Media (photos, voice and video recordings)
+// ---------------------------------------------------------------------------
+
+export const mediaKindEnum = pgEnum("media_kind", ["image", "audio", "video"]);
+export const mediaStatusEnum = pgEnum("media_status", [
+  "awaiting_upload",
+  "uploading",
+  "quarantined",
+  "scanning",
+  "clean",
+  "rejected",
+  "infected",
+  "scan_failed",
+]);
+
+/**
+ * Files are stored encrypted with the vault key under server-generated keys:
+ *   quarantine/<vaultId>/<id>  until scanned and verified,
+ *   media/<vaultId>/<id>       once clean.
+ * The original file name is never stored.
+ */
+export const mediaAssets = pgTable(
+  "media_assets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => legacyVaults.id, { onDelete: "cascade" }),
+    storyId: uuid("story_id").references(() => sealedStories.id, { onDelete: "set null" }),
+    kind: mediaKindEnum("kind").notNull(),
+    declaredMime: text("declared_mime").notNull(),
+    declaredSize: bigint("declared_size", { mode: "number" }).notNull(),
+    /** Set after upload (bytes received) and updated after sanitization. */
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    detectedMime: text("detected_mime"),
+    status: mediaStatusEnum("status").notNull().default("awaiting_upload"),
+    /** Machine-readable reason for rejected / failed files (never user content). */
+    statusReason: text("status_reason"),
+    labelEnc: bytea("label_enc"),
+    scanAttempts: integer("scan_attempts").notNull().default(0),
+    scannedAt: timestamp("scanned_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [index("media_vault_idx").on(t.vaultId, t.createdAt), index("media_status_idx").on(t.status, t.createdAt)],
 );

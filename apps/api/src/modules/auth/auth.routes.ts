@@ -39,7 +39,7 @@ export function authRoutes(ctx: AppContext, auth: AuthService) {
   return async function (app: FastifyInstance): Promise<void> {
     app.post("/auth/register", strict(5, 15), async (request, reply) => {
       const input = parse(registerSchema, request.body);
-      await auth.register(input, sessionMeta(request));
+      await auth.register(input, sessionMeta(request), request.locale);
       // Identical response whether or not the email already existed.
       return reply.status(202).send({ status: "check_your_email" });
     });

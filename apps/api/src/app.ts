@@ -1,11 +1,14 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
+import { DEFAULT_LOCALE, isLocale, negotiateLocale } from "@inother/shared";
 import type { Env } from "./config/env.js";
 import { createContext, type AppContext, type ContextOverrides } from "./context.js";
 import { createDb, type DbHandle } from "./db/client.js";
 import { registerErrorHandling } from "./http/error-handler.js";
 import { registerSecurity } from "./http/security.js";
 import { accountRoutes } from "./modules/account/account.routes.js";
+import { mediaRoutes } from "./modules/media/media.routes.js";
+import { MediaService } from "./modules/media/media.service.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { AuthService } from "./modules/auth/auth.service.js";
 import { vaultRoutes } from "./modules/vault/vault.routes.js";
@@ -40,15 +43,19 @@ export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandl
   const dbHandle = overrides.dbHandle ?? createDb(env.DATABASE_URL, env.DATABASE_POOL_MAX);
   const ctx = createContext(env, dbHandle.db, app.log, overrides);
   if (!overrides.dbHandle) app.addHook("onClose", async () => dbHandle.close());
+  app.addHook("onClose", async () => ctx.mediaQueue.close());
 
   const auth = new AuthService(ctx);
   const vaults = new VaultService(ctx);
+  const media = new MediaService(ctx, vaults);
 
   app.decorateRequest("auth", null);
   app.decorateRequest("ipHash", "");
+  app.decorateRequest("locale", DEFAULT_LOCALE);
   // ipHash must exist before the rate limiter computes its key, so this hook is added first.
   app.addHook("onRequest", async (request) => {
     request.ipHash = ctx.hmac.hex(request.ip, "ip");
+    request.locale = negotiateLocale(request.headers["accept-language"]);
   });
 
   registerErrorHandling(app);
@@ -57,6 +64,9 @@ export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandl
   app.addHook("preHandler", async (request) => {
     const token = request.cookies[env.SESSION_COOKIE_NAME];
     request.auth = token ? await auth.sessions.validate(token) : null;
+    const explicit = (request.query as Record<string, unknown> | undefined)?.locale;
+    if (isLocale(explicit)) request.locale = explicit;
+    else if (request.auth && isLocale(request.auth.user.locale)) request.locale = request.auth.user.locale;
   });
 
   app.get("/health", { config: { rateLimit: false } }, async () => ({ status: "ok" }));
@@ -64,6 +74,7 @@ export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandl
   await app.register(authRoutes(ctx, auth));
   await app.register(accountRoutes(ctx, auth.sessions, vaults));
   await app.register(vaultRoutes(vaults, auth.sessions));
+  await app.register(mediaRoutes(media));
 
   return { app, ctx };
 }

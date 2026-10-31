@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { localeSchema } from "../i18n.js";
 
 /** Current version of the Terms of Service / Privacy Policy the user must accept. */
 export const CURRENT_TERMS_VERSION = "2026-10-draft-1";
@@ -40,6 +41,8 @@ export const registerSchema = z.object({
   confirmAdult: z.literal(true, { error: "must_confirm_adult" }),
   acceptTerms: z.literal(true, { error: "must_accept_terms" }),
   termsVersion: z.literal(CURRENT_TERMS_VERSION, { error: "outdated_terms_version" }),
+  /** Preferred language for emails and content. Defaults to the negotiated request locale. */
+  locale: localeSchema.optional(),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 
@@ -83,3 +86,9 @@ export const reauthSchema = z.object({
 export const mfaConfirmSchema = z.object({ code: totpCodeSchema });
 
 export const mfaDisableSchema = z.object({ code: totpCodeSchema });
+
+export const updateProfileSchema = z
+  .object({ displayName: displayNameSchema, locale: localeSchema })
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, { error: "empty_update" });
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { CURRENT_TERMS_VERSION } from "@inother/shared";
+import { CURRENT_TERMS_VERSION, textDirection, updateProfileSchema } from "@inother/shared";
 import type { AppContext } from "../../context.js";
 import { consents, legacyVaults, sessions, users } from "../../db/schema.js";
 import { requireAuth, requireRecentReauth, requireVerified } from "../../http/auth-guard.js";
@@ -25,10 +25,30 @@ export function accountRoutes(ctx: AppContext, sessionService: SessionService, v
         email: auth.user.email,
         displayName: auth.user.displayName,
         locale: auth.user.locale,
+        dir: textDirection(request.locale),
         emailVerified: auth.user.emailVerified,
         mfaEnabled: auth.user.mfaEnabled,
         reauthValid: isRecent(auth),
       };
+    });
+
+    app.patch("/me", async (request) => {
+      const auth = requireAuth(request);
+      const input = parse(updateProfileSchema, request.body);
+      await ctx.db
+        .update(users)
+        .set({ ...input, updatedAt: ctx.now() })
+        .where(eq(users.id, auth.userId));
+      await writeAudit(ctx.db, {
+        actorId: auth.userId,
+        action: "account.profile_updated",
+        targetType: "user",
+        targetId: auth.userId,
+        ipHash: request.ipHash,
+        metadata: { fields: Object.keys(input).sort().join(",") },
+      });
+      const locale = input.locale ?? request.locale;
+      return { displayName: input.displayName ?? auth.user.displayName, locale, dir: textDirection(locale) };
     });
 
     app.get("/me/sessions", async (request) => {
@@ -93,7 +113,7 @@ export function accountRoutes(ctx: AppContext, sessionService: SessionService, v
         .where(eq(users.id, auth.userId));
       const consentRows = await ctx.db.select().from(consents).where(eq(consents.userId, auth.userId));
       const [vaultRow] = await ctx.db.select({ id: legacyVaults.id }).from(legacyVaults).where(eq(legacyVaults.legatorUserId, auth.userId));
-      const vault = vaultRow ? await vaults.export(auth.userId, request.ipHash) : null;
+      const vault = vaultRow ? await vaults.export(auth.userId, request.ipHash, request.locale) : null;
       await writeAudit(ctx.db, { actorId: auth.userId, action: "account.exported", targetType: "user", targetId: auth.userId, ipHash: request.ipHash });
       reply.header("Content-Disposition", 'attachment; filename="my-data.json"');
       return {
@@ -107,6 +127,8 @@ export function accountRoutes(ctx: AppContext, sessionService: SessionService, v
     /** Permanent account deletion (cascades to sessions, vault and all vault content). */
     app.delete("/me", async (request, reply) => {
       const auth = requireRecentReauth(request, isRecent);
+      // Vault first: also removes its media files from object storage.
+      await vaults.deleteIfExists(auth.userId, request.ipHash);
       await ctx.db.transaction(async (tx) => {
         await tx.delete(users).where(eq(users.id, auth.userId));
         await writeAudit(tx, { actorId: auth.userId, action: "account.deleted", targetType: "user", targetId: auth.userId, ipHash: request.ipHash });

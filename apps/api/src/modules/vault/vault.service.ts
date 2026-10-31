@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { and, asc, count, eq, inArray } from "drizzle-orm";
 import {
   CURRENT_TERMS_VERSION,
+  DEFAULT_LOCALE,
+  type Locale,
   QUESTION_TOPICS,
   TOTAL_QUESTIONS,
   findQuestion,
@@ -17,6 +19,7 @@ import {
   consents,
   guidedAnswers,
   legacyVaults,
+  mediaAssets,
   sealedStories,
   storyAudienceMembers,
   vaultBeneficiaries,
@@ -25,6 +28,7 @@ import {
 import { writeAudit } from "../../lib/audit.js";
 import { generateDek, VaultCipher } from "../../lib/crypto/keys.js";
 import { badRequest, conflict, notFound } from "../../lib/errors.js";
+import { mediaKeys } from "../../lib/storage.js";
 
 export const LIMITS = { beneficiaries: 50, executors: 5, stories: 500 } as const;
 
@@ -80,22 +84,30 @@ export class VaultService {
   async getOwned(userId: string): Promise<OwnedVault> {
     const [vault] = await this.ctx.db.select().from(legacyVaults).where(eq(legacyVaults.legatorUserId, userId));
     if (!vault) throw notFound("vault_not_found");
-    const dek = await this.ctx.keys.unwrapKey(vault.wrappedDek, vault.kekId, this.dekContext(vault.id));
-    return { vault, cipher: new VaultCipher(dek) };
+    return { vault, cipher: new VaultCipher(await this.dekFor(vault)) };
+  }
+
+  /** Unwraps the vault's data-encryption key (used for field and file encryption). */
+  async dekFor(vault: Pick<VaultRow, "id" | "wrappedDek" | "kekId">): Promise<Buffer> {
+    return this.ctx.keys.unwrapKey(vault.wrappedDek, vault.kekId, this.dekContext(vault.id));
   }
 
   /** Content can only be changed while the legator is building the vault. */
-  private assertEditable(vault: VaultRow): void {
+  assertEditable(vault: VaultRow): void {
     if (vault.status === "released" || vault.status === "release_pending") throw conflict("vault_locked");
   }
 
   async summary(userId: string) {
     const { vault, cipher } = await this.getOwned(userId);
-    const [[b], [e], [s], answered] = await Promise.all([
+    const [[b], [e], [s], answered, [m]] = await Promise.all([
       this.ctx.db.select({ n: count() }).from(vaultBeneficiaries).where(eq(vaultBeneficiaries.vaultId, vault.id)),
       this.ctx.db.select({ n: count() }).from(vaultExecutors).where(eq(vaultExecutors.vaultId, vault.id)),
       this.ctx.db.select({ n: count() }).from(sealedStories).where(eq(sealedStories.vaultId, vault.id)),
       this.ctx.db.select({ questionId: guidedAnswers.questionId }).from(guidedAnswers).where(eq(guidedAnswers.vaultId, vault.id)),
+      this.ctx.db
+        .select({ n: count() })
+        .from(mediaAssets)
+        .where(and(eq(mediaAssets.vaultId, vault.id), eq(mediaAssets.status, "clean"))),
     ]);
     const answeredIds = new Set(answered.map((a) => a.questionId));
     const topics = QUESTION_TOPICS.map((t) => ({
@@ -111,7 +123,7 @@ export class VaultService {
       requireSecondExecutor: vault.requireSecondExecutor,
       neverRelease: vault.status === "never_release",
       openingMessage: vault.openingMessageEnc ? cipher.decrypt(vault.openingMessageEnc, aad("vault", "opening_message", vault.id)) : null,
-      counts: { beneficiaries: b?.n ?? 0, executors: e?.n ?? 0, stories: s?.n ?? 0, answers: answeredCount },
+      counts: { beneficiaries: b?.n ?? 0, executors: e?.n ?? 0, stories: s?.n ?? 0, answers: answeredCount, media: m?.n ?? 0 },
       completeness: {
         answered: answeredCount,
         totalQuestions: TOTAL_QUESTIONS,
@@ -165,6 +177,18 @@ export class VaultService {
       await tx.delete(legacyVaults).where(eq(legacyVaults.id, vault.id));
       await writeAudit(tx, { actorId: userId, action: "vault.deleted", targetType: "vault", targetId: vault.id, ipHash });
     });
+    // Files are already unreadable (their key is gone); remove the ciphertext too.
+    for (const prefix of mediaKeys.vaultPrefixes(vault.id)) {
+      await this.ctx.storage.deletePrefix(prefix).catch((err: unknown) => {
+        this.ctx.log.error({ err, vaultId: vault.id }, "failed to delete vault media from storage");
+      });
+    }
+  }
+
+  /** Deletes the user's vault if one exists (used by account deletion). */
+  async deleteIfExists(userId: string, ipHash: string | null): Promise<void> {
+    const [vault] = await this.ctx.db.select({ id: legacyVaults.id }).from(legacyVaults).where(eq(legacyVaults.legatorUserId, userId));
+    if (vault) await this.delete(userId, ipHash);
   }
 
   // ---------------------------------------------------------------------------
@@ -493,7 +517,7 @@ export class VaultService {
   // Export (portable, open format — the legator's data must outlive any vendor)
   // ---------------------------------------------------------------------------
 
-  async export(userId: string, ipHash: string | null) {
+  async export(userId: string, ipHash: string | null, locale: Locale = DEFAULT_LOCALE) {
     const summary = await this.summary(userId);
     const [beneficiaries, executors, answers, storyList] = await Promise.all([
       this.listBeneficiaries(userId),
@@ -510,7 +534,8 @@ export class VaultService {
       vault: summary,
       beneficiaries,
       executors,
-      answers: answers.map((a) => ({ ...a, question: findQuestion(a.questionId)?.he ?? null })),
+      locale,
+      answers: answers.map((a) => ({ ...a, question: findQuestion(a.questionId)?.text[locale] ?? null })),
       stories,
     };
   }

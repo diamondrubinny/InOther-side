@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { sql } from "drizzle-orm";
 import type { FastifyInstance, LightMyRequestResponse } from "fastify";
 import { CURRENT_TERMS_VERSION } from "@inother/shared";
@@ -5,6 +8,10 @@ import { buildApp } from "../src/app.js";
 import type { AppContext } from "../src/context.js";
 import { createDb, type DbHandle } from "../src/db/client.js";
 import { MemoryMailer } from "../src/lib/mailer.js";
+import { InlineMediaQueue } from "../src/lib/queue.js";
+import type { MalwareScanner } from "../src/lib/scanner.js";
+import { LocalStorage } from "../src/lib/storage.js";
+import { MediaProcessor } from "../src/modules/media/media.processor.js";
 import { testDatabaseUrl, testEnv, WEB_ORIGIN } from "./env.js";
 
 export const STRONG_PASSWORD = "a-very-long passphrase 42";
@@ -13,6 +20,9 @@ export interface Harness {
   app: FastifyInstance;
   ctx: AppContext;
   mailer: MemoryMailer;
+  storageDir: string;
+  queue: InlineMediaQueue;
+  processor: MediaProcessor;
   db: DbHandle;
   clock: { now: Date; advanceMinutes(m: number): void };
   request(opts: RequestOpts): Promise<LightMyRequestResponse>;
@@ -27,6 +37,15 @@ export interface RequestOpts {
   /** Override or remove (null) the Origin header. */
   origin?: string | null;
   ip?: string;
+  headers?: Record<string, string>;
+  /** Raw body (sent as-is, e.g. file bytes). */
+  rawBody?: Buffer;
+}
+
+export interface HarnessOptions {
+  scanner?: MalwareScanner;
+  /** Process uploaded media immediately (default) or leave jobs for the test to run. */
+  processInline?: boolean;
 }
 
 let ipCounter = 1;
@@ -36,12 +55,23 @@ export function nextIp(): string {
   return `10.${(ipCounter >> 16) & 255}.${(ipCounter >> 8) & 255}.${ipCounter & 255}`;
 }
 
-export async function createHarness(envOverrides: Record<string, string> = {}): Promise<Harness> {
+export async function createHarness(envOverrides: Record<string, string> = {}, options: HarnessOptions = {}): Promise<Harness> {
   const env = testEnv(envOverrides);
   const db = createDb(testDatabaseUrl(), 5);
   await db.db.execute(
     sql`TRUNCATE users, sessions, one_time_tokens, mfa_recovery_codes, mfa_totp_usage, consents, audit_log,
-        legacy_vaults, vault_beneficiaries, vault_executors, sealed_stories, sealed_story_audience, guided_answers CASCADE`,
+        legacy_vaults, vault_beneficiaries, vault_executors, sealed_stories, sealed_story_audience, guided_answers,
+        media_assets CASCADE`,
+  );
+  const storageDir = await mkdtemp(path.join(os.tmpdir(), "inother-storage-"));
+  const storage = new LocalStorage(storageDir);
+  const holder: { processor?: MediaProcessor } = {};
+  const queue = new InlineMediaQueue(
+    options.processInline === false
+      ? undefined
+      : async (assetId) => {
+          await holder.processor?.process(assetId).catch(() => {});
+        },
   );
   const mailer = new MemoryMailer();
   const clock = {
@@ -50,11 +80,20 @@ export async function createHarness(envOverrides: Record<string, string> = {}): 
       this.now = new Date(this.now.getTime() + m * 60_000);
     },
   };
-  const { app, ctx } = await buildApp(env, { mailer, dbHandle: db, now: () => clock.now });
+  const { app, ctx } = await buildApp(env, {
+    mailer,
+    dbHandle: db,
+    now: () => clock.now,
+    storage,
+    mediaQueue: queue,
+    ...(options.scanner ? { scanner: options.scanner } : {}),
+  });
+  const processor = new MediaProcessor(ctx);
+  holder.processor = processor;
   await app.ready();
 
   const request = (opts: RequestOpts) => {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...(opts.headers ?? {}) };
     if (opts.origin !== null) headers.origin = opts.origin ?? WEB_ORIGIN;
     if (opts.cookie) headers.cookie = opts.cookie;
     return app.inject({
@@ -62,7 +101,7 @@ export async function createHarness(envOverrides: Record<string, string> = {}): 
       url: opts.url,
       headers,
       remoteAddress: opts.ip ?? "10.0.0.1",
-      ...(opts.body !== undefined ? { payload: opts.body as object } : {}),
+      ...(opts.rawBody !== undefined ? { payload: opts.rawBody } : opts.body !== undefined ? { payload: opts.body as object } : {}),
     });
   };
 
@@ -70,12 +109,16 @@ export async function createHarness(envOverrides: Record<string, string> = {}): 
     app,
     ctx,
     mailer,
+    storageDir,
+    queue,
+    processor,
     db,
     clock,
     request,
     async close() {
       await app.close();
       await db.close();
+      await rm(storageDir, { recursive: true, force: true });
     },
   };
 }

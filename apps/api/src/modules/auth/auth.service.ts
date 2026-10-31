@@ -1,6 +1,9 @@
 import { eq, sql } from "drizzle-orm";
 import {
   CURRENT_TERMS_VERSION,
+  DEFAULT_LOCALE,
+  isLocale,
+  type Locale,
   type LoginInput,
   type LoginMfaInput,
   type RegisterInput,
@@ -16,12 +19,7 @@ import {
   needsRehash,
   verifyPassword,
 } from "../../lib/password.js";
-import {
-  alreadyRegisteredMessage,
-  passwordResetMessage,
-  securityNoticeMessage,
-  verifyEmailMessage,
-} from "./emails.js";
+import { emails } from "./emails.js";
 import { MfaService } from "./mfa.service.js";
 import { OneTimeTokenService } from "./one-time-token.service.js";
 import { SessionService, type SessionMeta } from "./session.service.js";
@@ -29,6 +27,8 @@ import { SessionService, type SessionMeta } from "./session.service.js";
 /** Lockout after this many consecutive failures; duration doubles per extra failure, capped. */
 const LOCKOUT_THRESHOLD = 5;
 const LOCKOUT_MAX_MINUTES = 60;
+
+const asLocale = (value: string | null | undefined): Locale => (isLocale(value) ? value : DEFAULT_LOCALE);
 
 export type LoginResult =
   | { kind: "session"; token: string; expiresAt: Date }
@@ -56,18 +56,22 @@ export class AuthService {
    * Registration never reveals whether an email already exists: the HTTP response is identical
    * and the existing owner gets a notification email instead.
    */
-  async register(input: RegisterInput, meta: SessionMeta): Promise<void> {
+  async register(input: RegisterInput, meta: SessionMeta, requestLocale: Locale): Promise<void> {
     if (isWeakPassword(input.password, { email: input.email, displayName: input.displayName })) {
       throw badRequest("password_too_weak");
     }
-    const [existing] = await this.ctx.db.select({ id: users.id }).from(users).where(eq(users.email, input.email));
+    const [existing] = await this.ctx.db
+      .select({ id: users.id, locale: users.locale })
+      .from(users)
+      .where(eq(users.email, input.email));
     if (existing) {
       await burnPasswordVerification(input.password);
       await this.ctx.mailer.send(
-        alreadyRegisteredMessage(input.email, this.link("/login"), this.link("/forgot-password")),
+        emails.alreadyRegistered(input.email, asLocale(existing.locale), this.link("/login"), this.link("/forgot-password")),
       );
       return;
     }
+    const locale = input.locale ?? requestLocale;
 
     const passwordHash = await hashPassword(input.password);
     const now = this.ctx.now();
@@ -78,6 +82,7 @@ export class AuthService {
           email: input.email,
           passwordHash,
           displayName: input.displayName,
+          locale,
           adultConfirmedAt: now,
           passwordChangedAt: now,
           createdAt: now,
@@ -96,17 +101,17 @@ export class AuthService {
       await writeAudit(tx, { actorId: user.id, action: "auth.register", targetType: "user", targetId: user.id, ipHash: meta.ipHash });
       return this.tokens.issue(user.id, "email_verify", tx);
     });
-    if (token) await this.ctx.mailer.send(verifyEmailMessage(input.email, this.link("/verify-email", token)));
+    if (token) await this.ctx.mailer.send(emails.verifyEmail(input.email, locale, this.link("/verify-email", token)));
   }
 
   async resendVerification(userId: string): Promise<void> {
     const [user] = await this.ctx.db
-      .select({ email: users.email, emailVerifiedAt: users.emailVerifiedAt })
+      .select({ email: users.email, emailVerifiedAt: users.emailVerifiedAt, locale: users.locale })
       .from(users)
       .where(eq(users.id, userId));
     if (!user || user.emailVerifiedAt) return;
     const token = await this.tokens.issue(userId, "email_verify");
-    await this.ctx.mailer.send(verifyEmailMessage(user.email, this.link("/verify-email", token)));
+    await this.ctx.mailer.send(emails.verifyEmail(user.email, asLocale(user.locale), this.link("/verify-email", token)));
   }
 
   async verifyEmail(token: string, ipHash: string | null): Promise<void> {
@@ -135,7 +140,7 @@ export class AuthService {
     }
 
     if (!(await verifyPassword(user.passwordHash, input.password))) {
-      await this.registerFailedLogin(user.id, user.email, user.failedLoginCount + 1, meta.ipHash);
+      await this.registerFailedLogin(user.id, user.email, asLocale(user.locale), user.failedLoginCount + 1, meta.ipHash);
       throw unauthorized("invalid_credentials");
     }
 
@@ -179,7 +184,7 @@ export class AuthService {
     return session;
   }
 
-  private async registerFailedLogin(userId: string, email: string, failures: number, ipHash: string | null): Promise<void> {
+  private async registerFailedLogin(userId: string, email: string, locale: Locale, failures: number, ipHash: string | null): Promise<void> {
     let lockedUntil: Date | null = null;
     if (failures >= LOCKOUT_THRESHOLD) {
       const minutes = Math.min(2 ** (failures - LOCKOUT_THRESHOLD), LOCKOUT_MAX_MINUTES);
@@ -191,26 +196,24 @@ export class AuthService {
       .where(eq(users.id, userId));
     await writeAudit(this.ctx.db, { actorId: userId, action: "auth.login.failure", targetType: "user", targetId: userId, ipHash, metadata: { failures } });
     if (failures === LOCKOUT_THRESHOLD) {
-      await this.ctx.mailer.send(
-        securityNoticeMessage(email, "זוהו מספר ניסיונות התחברות כושלים לחשבון שלך, וההתחברות נחסמה זמנית."),
-      );
+      await this.ctx.mailer.send(emails.securityNotice(email, locale, "account_locked"));
     }
   }
 
   /** Always succeeds from the caller's point of view (no account enumeration). */
   async requestPasswordReset(email: string, ipHash: string | null): Promise<void> {
-    const [user] = await this.ctx.db.select({ id: users.id }).from(users).where(eq(users.email, email));
+    const [user] = await this.ctx.db.select({ id: users.id, locale: users.locale }).from(users).where(eq(users.email, email));
     if (!user) return;
     const token = await this.tokens.issue(user.id, "password_reset");
     await writeAudit(this.ctx.db, { actorId: user.id, action: "auth.password_reset.requested", targetType: "user", targetId: user.id, ipHash });
-    await this.ctx.mailer.send(passwordResetMessage(email, this.link("/reset-password", token)));
+    await this.ctx.mailer.send(emails.passwordReset(email, asLocale(user.locale), this.link("/reset-password", token)));
   }
 
   async confirmPasswordReset(token: string, newPassword: string, ipHash: string | null): Promise<void> {
     const row = await this.tokens.peek(token, "password_reset");
     if (!row) throw badRequest("invalid_or_expired_token");
     const [user] = await this.ctx.db
-      .select({ email: users.email, displayName: users.displayName })
+      .select({ email: users.email, displayName: users.displayName, locale: users.locale })
       .from(users)
       .where(eq(users.id, row.userId));
     if (!user) throw badRequest("invalid_or_expired_token");
@@ -227,7 +230,7 @@ export class AuthService {
       await this.sessions.revokeAll(row.userId, tx);
       await writeAudit(tx, { actorId: row.userId, action: "auth.password_reset.completed", targetType: "user", targetId: row.userId, ipHash });
     });
-    await this.ctx.mailer.send(securityNoticeMessage(user.email, "הסיסמה לחשבון שלך שונתה, וכל החיבורים הפעילים נותקו."));
+    await this.ctx.mailer.send(emails.securityNotice(user.email, asLocale(user.locale), "password_reset"));
   }
 
   async changePassword(
@@ -248,7 +251,7 @@ export class AuthService {
       await this.sessions.revokeAllExcept(userId, sessionId, tx);
       await writeAudit(tx, { actorId: userId, action: "auth.password_changed", targetType: "user", targetId: userId, ipHash });
     });
-    await this.ctx.mailer.send(securityNoticeMessage(user.email, "הסיסמה לחשבון שלך שונתה."));
+    await this.ctx.mailer.send(emails.securityNotice(user.email, asLocale(user.locale), "password_changed"));
   }
 
   /** Step-up authentication before sensitive actions (deletion, export, MFA changes). */
