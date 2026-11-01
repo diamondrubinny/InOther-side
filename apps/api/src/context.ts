@@ -7,6 +7,7 @@ import { LogMailer, MemoryMailer, SmtpMailer, type Mailer } from "./lib/mailer.j
 import { BullMediaQueue, type MediaQueue } from "./lib/queue.js";
 import { ClamdScanner, NoopScanner, type MalwareScanner } from "./lib/scanner.js";
 import { createStorage, type ObjectStorage } from "./lib/storage.js";
+import { MockTranscriber, OpenAiCompatibleTranscriber, type Transcriber } from "./lib/transcriber.js";
 import { ClaudeLlm, MockLlm, type LlmProvider } from "./modules/persona/providers/llm.js";
 import { MockVoice, type VoiceProvider } from "./modules/persona/providers/voice.js";
 
@@ -23,6 +24,7 @@ export interface AppContext {
   /** AI persona backends (null = disabled). */
   llm: LlmProvider | null;
   voice: VoiceProvider | null;
+  transcriber: Transcriber | null;
   log: FastifyBaseLogger;
   /** Injectable clock for deterministic tests. */
   now: () => Date;
@@ -36,6 +38,7 @@ export interface ContextOverrides {
   mediaQueue?: MediaQueue;
   llm?: LlmProvider | null;
   voice?: VoiceProvider | null;
+  transcriber?: Transcriber | null;
   now?: () => Date;
 }
 
@@ -69,6 +72,14 @@ export function createContext(env: Env, db: Database, log: FastifyBaseLogger, ov
             ? new MockLlm()
             : null,
     voice: overrides.voice !== undefined ? overrides.voice : env.VOICE_PROVIDER === "mock" ? new MockVoice() : null,
+    transcriber:
+      overrides.transcriber !== undefined
+        ? overrides.transcriber
+        : env.TRANSCRIBER === "openai_compatible"
+          ? new OpenAiCompatibleTranscriber(env.TRANSCRIBER_URL as string, env.TRANSCRIBER_MODEL, env.TRANSCRIBER_API_KEY, env.TRANSCRIBER_TIMEOUT_MS)
+          : env.TRANSCRIBER === "mock"
+            ? new MockTranscriber()
+            : null,
     log,
     now: overrides.now ?? (() => new Date()),
   };

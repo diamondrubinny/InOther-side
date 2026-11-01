@@ -3,7 +3,9 @@ import type { Readable } from "node:stream";
 import { MAX_MEDIA_BYTES, createMediaSchema, updateMediaSchema, uuidParamSchema } from "@inother/shared";
 import { requireVerified } from "../../http/auth-guard.js";
 import { parse } from "../../lib/validate.js";
+import { z } from "zod";
 import type { MediaService } from "./media.service.js";
+import type { TranscriptionService } from "./transcription.service.js";
 
 const EXT_BY_MIME: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -22,7 +24,9 @@ const EXT_BY_MIME: Record<string, string> = {
   "video/quicktime": "mov",
 };
 
-export function mediaRoutes(media: MediaService) {
+const transcriptSchema = z.object({ text: z.string().trim().min(1).max(200_000) });
+
+export function mediaRoutes(media: MediaService, transcripts: TranscriptionService) {
   return async function (app: FastifyInstance): Promise<void> {
     // Raw streaming bodies for media uploads, scoped to this plugin only.
     app.addContentTypeParser(/^(image|audio|video)\/[a-z0-9.+-]+$/i, (_req, payload, done) => done(null, payload));
@@ -79,6 +83,25 @@ export function mediaRoutes(media: MediaService) {
         .header("Content-Disposition", `attachment; filename="${id}.${ext}"`)
         .header("Cache-Control", "private, no-store");
       return reply.send(file.stream);
+    });
+
+    app.get("/vault/media/:id/transcript", async (request) => {
+      const { userId } = requireVerified(request);
+      return transcripts.get(userId, parse(uuidParamSchema, request.params).id);
+    });
+    app.put("/vault/media/:id/transcript", async (request) => {
+      const { userId } = requireVerified(request);
+      const { text } = parse(transcriptSchema, request.body);
+      return transcripts.update(userId, parse(uuidParamSchema, request.params).id, text, request.ipHash);
+    });
+    app.post("/vault/media/:id/transcript/retry", { config: { rateLimit: { max: 20, timeWindow: "1 hour" } } }, async (request) => {
+      const { userId } = requireVerified(request);
+      return transcripts.retry(userId, parse(uuidParamSchema, request.params).id);
+    });
+    app.delete("/vault/media/:id/transcript", async (request, reply) => {
+      const { userId } = requireVerified(request);
+      await transcripts.delete(userId, parse(uuidParamSchema, request.params).id, request.ipHash);
+      return reply.status(204).send();
     });
 
     app.patch("/vault/media/:id", async (request) => {

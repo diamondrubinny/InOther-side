@@ -75,4 +75,5 @@ export interface MediaItem {
   label: string | null;
   storyId: string | null;
   createdAt: string;
+  transcriptStatus?: "none" | "pending" | "done" | "failed";
 }

@@ -72,6 +72,19 @@ const envSchema = z
     /** Voice cloning / TTS. Real vendors plug in behind VoiceProvider (verify ToS + DPA first). */
     VOICE_PROVIDER: z.enum(["none", "mock"]).default("mock"),
 
+    /**
+     * Speech-to-text for the legator's recordings. Recommended: a SELF-HOSTED Whisper-compatible
+     * server (e.g. faster-whisper / whisper.cpp with a Hebrew model) so recordings never leave
+     * your infrastructure. "openai_compatible" speaks POST {URL}/v1/audio/transcriptions.
+     */
+    TRANSCRIBER: z.enum(["none", "mock", "openai_compatible"]).default("mock"),
+    TRANSCRIBER_URL: z.string().url().optional(),
+    TRANSCRIBER_MODEL: z.string().default("whisper-1"),
+    TRANSCRIBER_API_KEY: z.string().optional(),
+    TRANSCRIBER_TIMEOUT_MS: z.coerce.number().int().min(10_000).default(600_000),
+
+    /** Multiplies the strict per-IP limits on credential endpoints. Tests only; must be 1 in production. */
+    AUTH_RATE_LIMIT_MULTIPLIER: z.coerce.number().int().min(1).max(1000).default(1),
     RATE_LIMIT_GLOBAL_PER_MINUTE: z.coerce.number().int().min(10).default(300),
     BODY_LIMIT_BYTES: z.coerce.number().int().min(1024).max(10 * 1024 * 1024).default(256 * 1024),
   })
@@ -95,12 +108,18 @@ const envSchema = z
       if (env.SCANNER !== "clamd") {
         ctx.addIssue({ code: "custom", path: ["SCANNER"], message: "production requires the clamd malware scanner" });
       }
-      if (env.LLM_PROVIDER === "mock" || env.VOICE_PROVIDER === "mock") {
+      if (env.LLM_PROVIDER === "mock" || env.VOICE_PROVIDER === "mock" || env.TRANSCRIBER === "mock") {
         ctx.addIssue({ code: "custom", path: ["LLM_PROVIDER"], message: "mock AI providers are not allowed in production" });
+      }
+      if (env.AUTH_RATE_LIMIT_MULTIPLIER !== 1) {
+        ctx.addIssue({ code: "custom", path: ["AUTH_RATE_LIMIT_MULTIPLIER"], message: "must be 1 in production" });
       }
       if (!env.SESSION_COOKIE_NAME.startsWith("__Host-")) {
         ctx.addIssue({ code: "custom", path: ["SESSION_COOKIE_NAME"], message: "production requires a __Host- cookie" });
       }
+    }
+    if (env.TRANSCRIBER === "openai_compatible" && !env.TRANSCRIBER_URL) {
+      ctx.addIssue({ code: "custom", path: ["TRANSCRIBER_URL"], message: "required when TRANSCRIBER=openai_compatible" });
     }
     if (env.STORAGE_DRIVER === "s3" && !env.S3_BUCKET) {
       ctx.addIssue({ code: "custom", path: ["S3_BUCKET"], message: "required when STORAGE_DRIVER=s3" });

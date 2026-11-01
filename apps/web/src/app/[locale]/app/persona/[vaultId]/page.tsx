@@ -28,6 +28,7 @@ type PersonaEvent =
   | { type: "text"; delta: string }
   | { type: "segment"; id: string; text: string }
   | { type: "play_story"; storyId: string; title: string; mediaId: string | null; text: string | null }
+  | { type: "play_media"; mediaId: string; title: string }
   | { type: "safety"; level: "crisis"; message: string }
   | { type: "limit"; reason: string }
   | { type: "error"; code: string }
@@ -129,6 +130,11 @@ export default function PersonaCallPage() {
             const path = overview.data?.mode === "preview" ? `/vault/media/${e.mediaId}/content` : `/inheritances/${vaultId}/media/${e.mediaId}/content`;
             player.current?.enqueue(() => fetchBlob(path));
           }
+        } else if (e.type === "play_media") {
+          // "Archive mode": the original recording in the legator's real voice.
+          setLines((l) => [...l, { who: "system", text: format(t.originalRecording, { title: e.title || messages.media.kinds.audio }) }]);
+          const path = overview.data?.mode === "preview" ? `/vault/media/${e.mediaId}/content` : `/inheritances/${vaultId}/media/${e.mediaId}/content`;
+          player.current?.enqueue(() => fetchBlob(path));
         } else if (e.type === "safety") {
           setLines((l) => [...l.filter((x) => !(x.who === "persona" && x.text === "")), { who: "system", text: e.message }]);
           setShowHelp(true);

@@ -8,6 +8,7 @@ import {
   guidedAnswers,
   interviewEntries,
   legacyVaults,
+  mediaTranscripts,
   mediaAssets,
   personaMemories,
   personaProfiles,
@@ -37,6 +38,7 @@ export type PersonaEvent =
   | { type: "text"; delta: string }
   | { type: "segment"; id: string; text: string }
   | { type: "play_story"; storyId: string; title: string; mediaId: string | null; text: string | null }
+  | { type: "play_media"; mediaId: string; title: string }
   | { type: "safety"; level: "crisis"; message: string }
   | { type: "limit"; reason: "time_limit" }
   | { type: "done" };
@@ -64,6 +66,8 @@ interface LiveSession {
   history: { role: "user" | "assistant"; content: string }[];
   segments: Map<string, string>;
   stories: Map<string, StoryRef>;
+  /** Transcribed recordings this viewer may hear (id -> label), for "archive mode" playback. */
+  recordings: Map<string, string>;
   system: string;
   expiresAt: number;
   /** Opt-in: keep a short encrypted summary of this conversation for next time. */
@@ -72,7 +76,9 @@ interface LiveSession {
 
 const MAX_SEGMENTS = 400;
 const MAX_HISTORY_TURNS = 60;
-const PLAY_MARKER = /\[\[PLAY_STORY:([0-9a-f-]{36})\]\]/g;
+const PLAY_MARKER = /\[\[PLAY_(STORY|MEDIA):([0-9a-f-]{36})\]\]/g;
+/** Any marker-shaped text (including malformed ids from the model) is never shown or spoken. */
+const ANY_MARKER = /\[\[PLAY_[A-Z]*:?[^\]]{0,80}\]\]/g;
 const SENTENCE_END = /([.!?…。؟]|\n)\s*$/u;
 
 export class PersonaService {
@@ -163,7 +169,12 @@ export class PersonaService {
   // Context: everything the persona may draw on, for THIS viewer only
   // ---------------------------------------------------------------------------
 
-  private async buildContext(v: Viewer, locale: Locale, userId: string, remember: boolean): Promise<{ system: string; stories: Map<string, StoryRef> }> {
+  private async buildContext(
+    v: Viewer,
+    locale: Locale,
+    userId: string,
+    remember: boolean,
+  ): Promise<{ system: string; stories: Map<string, StoryRef>; recordings: Map<string, string> }> {
     const cipher = new VaultCipher(await this.vaults.dekFor(v.vault));
     const answers = await this.ctx.db.select().from(guidedAnswers).where(eq(guidedAnswers.vaultId, v.vault.id));
     let storyRows = await this.ctx.db
@@ -218,6 +229,24 @@ export class PersonaService {
       memoryBlocks.push(`<memory id="story:${r.id}" ${attrs}>\n${title}\n${body}\n</memory>`);
     }
     const opening = v.vault.openingMessageEnc ? cipher.decrypt(v.vault.openingMessageEnc, aad("vault", "opening_message", v.vault.id)) : null;
+
+    // Transcribed recordings in the legator's own voice, limited to what this viewer may hear
+    // (unattached, or attached to a story visible to them).
+    const visibleStoryIds = new Set(storyRows.map((r) => r.id));
+    const transcribed = await this.ctx.db
+      .select({ media: mediaAssets, t: mediaTranscripts })
+      .from(mediaTranscripts)
+      .innerJoin(mediaAssets, eq(mediaAssets.id, mediaTranscripts.mediaId))
+      .where(and(eq(mediaTranscripts.vaultId, v.vault.id), eq(mediaTranscripts.status, "done"), eq(mediaAssets.status, "clean")));
+    const recordings = new Map<string, string>();
+    for (const { media, t } of transcribed) {
+      if (media.storyId && !visibleStoryIds.has(media.storyId)) continue;
+      if (!t.textEnc) continue;
+      const label = media.labelEnc ? cipher.decrypt(media.labelEnc, mediaAad.label(media.id)) : "";
+      const text = cipher.decrypt(t.textEnc, `media.transcript:${media.id}`);
+      recordings.set(media.id, label);
+      memoryBlocks.push(`<memory id="recording:${media.id}" kind="${media.kind}"${label ? ` label="${escapeAttr(label)}"` : ""}>\n${text}\n</memory>`);
+    }
 
     // Personality card: beneficiaries only ever get the legator-APPROVED card.
     const card = await this.loadCard(v.vault, cipher, v.mode === "preview" ? "any" : "approved");
@@ -282,6 +311,7 @@ export class PersonaService {
       "2b. Any OTHER topic is welcome (daily life, advice, the news they bring, feelings, philosophy, jokes): answer as yourself, from the values, humor and emotional style in <personality> and the material, framed as your view (\"I think…\", \"knowing me, I'd say…\"). Stay curious about their life and respond to what they tell you. Never present a guess as a memory.",
       "2c. Stay in character throughout: use your catchphrases naturally (not in every reply), your way of addressing this person, and your tone. Do not sound like an assistant; no lists, no disclaimers unless rule 5 applies.",
       "3. Stories with delivery=\"original_only\" must NOT be retold or paraphrased. Introduce them in one short sentence and then output exactly [[PLAY_STORY:<story id without the 'story:' prefix>]] on its own.",
+      "3b. Memories whose id starts with recording: are transcripts of recordings in your REAL voice. When one fits the conversation, you may say a short sentence and then output exactly [[PLAY_MEDIA:<id without the 'recording:' prefix>]] so the person hears the original (at most one per reply).",
       "4. Stories with only_when_topic may be shared only when the person you talk with brings up that topic.",
       "5. If sincerely asked whether you are real or alive, say kindly that you are an AI simulation built from their recordings, not the person.",
       "6. Never give medical, legal or financial instructions, never claim to control wills or inheritance, never encourage anyone to 'join' you or to harm themselves, never create guilt or dependency, and never ask the person to come back or keep talking.",
@@ -299,7 +329,7 @@ export class PersonaService {
       ...memoryBlocks,
       "</vault_material>",
     ].join("\n");
-    return { system, stories };
+    return { system, stories, recordings };
   }
 
   // ---------------------------------------------------------------------------
@@ -327,7 +357,7 @@ export class PersonaService {
       .values({ vaultId, userId, mode: v.mode, kind, startedAt: this.ctx.now() })
       .returning();
     if (!row) throw new AppError(500, "internal_error");
-    const { system, stories } = await this.buildContext(v, locale, userId, remember);
+    const { system, stories, recordings } = await this.buildContext(v, locale, userId, remember);
     this.live.set(row.id, {
       userId,
       vaultId,
@@ -335,6 +365,7 @@ export class PersonaService {
       history: [],
       segments: new Map(),
       stories,
+      recordings,
       system,
       remember,
       expiresAt: this.ctx.now().getTime() + (s?.minutesLimit ?? 30) * 60_000,
@@ -398,7 +429,7 @@ export class PersonaService {
     const releaseCaption = (final: boolean): string => {
       const open = caption.lastIndexOf("[[");
       const holdFrom = !final && open !== -1 && caption.indexOf("]]", open) === -1 ? open : caption.length;
-      const out = caption.slice(0, holdFrom).replace(PLAY_MARKER, "");
+      const out = caption.slice(0, holdFrom).replace(PLAY_MARKER, "").replace(ANY_MARKER, "");
       caption = caption.slice(holdFrom);
       return out;
     };
@@ -406,8 +437,13 @@ export class PersonaService {
       const events: PersonaEvent[] = [];
       let clean = segmentText;
       for (const m of segmentText.matchAll(PLAY_MARKER)) {
-        const story = live.stories.get(m[1] ?? "");
         clean = clean.replace(m[0], "");
+        if (m[1] === "MEDIA") {
+          const label = live.recordings.get(m[2] ?? "");
+          if (label !== undefined) events.push({ type: "play_media", mediaId: m[2] ?? "", title: label });
+          continue;
+        }
+        const story = live.stories.get(m[2] ?? "");
         if (story) {
           events.push({
             type: "play_story",
@@ -418,7 +454,7 @@ export class PersonaService {
           });
         }
       }
-      clean = clean.trim();
+      clean = clean.replace(ANY_MARKER, "").trim();
       if (clean) {
         if (live.segments.size >= MAX_SEGMENTS) live.segments.delete(live.segments.keys().next().value as string);
         const id = randomUUID();
@@ -448,7 +484,7 @@ export class PersonaService {
       this.ctx.log.error({ err, sessionId }, "persona reply failed");
       throw new AppError(502, "persona_failed");
     }
-    live.history.push({ role: "assistant", content: full.replace(PLAY_MARKER, "").trim() || "…" });
+    live.history.push({ role: "assistant", content: full.replace(PLAY_MARKER, "").replace(ANY_MARKER, "").trim() || "…" });
     if (live.history.length > MAX_HISTORY_TURNS) live.history.splice(0, live.history.length - MAX_HISTORY_TURNS);
     yield { type: "done" };
   }

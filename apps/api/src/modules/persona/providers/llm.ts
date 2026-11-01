@@ -234,6 +234,12 @@ export class MockLlm implements LlmProvider {
       if (score > 0 && (!best || score > best.score)) best = { ...m, score };
     }
     const original = best && req.system.includes(`<memory id="${best.id}" delivery="original_only"`);
+    if (best?.id.startsWith("recording:")) {
+      const addr = /Address them as: ([^\n]+)/.exec(req.system)?.[1]?.trim();
+      const reply = `${addr ? `${addr}, ` : ""}תשמע איך סיפרתי את זה אז. [[PLAY_MEDIA:${best.id.slice("recording:".length)}]]`;
+      for (const chunk of reply.match(/.{1,12}/gsu) ?? []) yield chunk;
+      return;
+    }
     const address = /Address them as: ([^\n]+)/.exec(req.system)?.[1]?.trim();
     const catchphrase = /<catchphrase>([^<]+)<\/catchphrase>/.exec(req.system)?.[1]?.trim();
     const memoryNote = /<memory_of_past_conversations>\n?([\s\S]*?)<\/memory_of_past_conversations>/.exec(req.system)?.[1]?.trim();

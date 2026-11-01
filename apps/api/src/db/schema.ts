@@ -523,3 +523,22 @@ export const interviewEntries = pgTable(
   },
   (t) => [index("interview_vault_idx").on(t.vaultId, t.createdAt), index("interview_sitting_idx").on(t.sittingId)],
 );
+
+export const transcriptStatusEnum = pgEnum("transcript_status", ["pending", "done", "failed"]);
+
+/** Transcript of a legator recording (encrypted). Editable by the legator; becomes persona material. */
+export const mediaTranscripts = pgTable("media_transcripts", {
+  mediaId: uuid("media_id")
+    .primaryKey()
+    .references(() => mediaAssets.id, { onDelete: "cascade" }),
+  vaultId: uuid("vault_id")
+    .notNull()
+    .references(() => legacyVaults.id, { onDelete: "cascade" }),
+  status: transcriptStatusEnum("status").notNull().default("pending"),
+  textEnc: bytea("text_enc"),
+  language: text("language"),
+  /** True once the legator corrected the text by hand (never overwritten by re-transcription). */
+  editedByLegator: boolean("edited_by_legator").notNull().default(false),
+  attempts: integer("attempts").notNull().default(0),
+  ...timestamps,
+});

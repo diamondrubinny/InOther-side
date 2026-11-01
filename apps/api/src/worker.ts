@@ -6,6 +6,7 @@ import { createDb } from "./db/client.js";
 import { MEDIA_QUEUE_NAME, redisConnection, type MediaJob } from "./lib/queue.js";
 import { MediaProcessor, RetryableScanError } from "./modules/media/media.processor.js";
 import { MediaService } from "./modules/media/media.service.js";
+import { TranscriptionService } from "./modules/media/transcription.service.js";
 import { ReleaseService } from "./modules/release/release.service.js";
 import { VaultService } from "./modules/vault/vault.service.js";
 
@@ -22,6 +23,7 @@ async function main(): Promise<void> {
   const vaultService = new VaultService(ctx);
   const mediaService = new MediaService(ctx, vaultService);
   const releaseService = new ReleaseService(ctx, vaultService);
+  const transcriptionService = new TranscriptionService(ctx, vaultService);
   const connection = redisConnection(env.REDIS_URL);
 
   const worker = new Worker<MediaJob>(
@@ -30,6 +32,11 @@ async function main(): Promise<void> {
       if (job.data.type === "finalize_releases") {
         const released = await releaseService.finalizeDue();
         if (released > 0) log.info({ released }, "vaults released after waiting period");
+        return;
+      }
+      if (job.data.type === "transcribe") {
+        const outcome = await transcriptionService.process(job.data.assetId); // throws -> BullMQ retries
+        log.info({ assetId: job.data.assetId, outcome }, "transcription");
         return;
       }
       if (job.data.type === "cleanup") {

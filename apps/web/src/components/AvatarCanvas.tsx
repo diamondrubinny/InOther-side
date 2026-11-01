@@ -137,6 +137,8 @@ export function AvatarCanvas({
         ctx.font = `600 ${Math.round(r * 0.8)}px system-ui, sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
+        // Canvas doesn't inherit the page's direction reliably: set it for Hebrew/Arabic initials.
+        ctx.direction = /[\u0590-\u06FF]/.test(initials) ? "rtl" : "ltr";
         ctx.fillText(initials, W / 2, H / 2);
       }
       frame = requestAnimationFrame(draw);

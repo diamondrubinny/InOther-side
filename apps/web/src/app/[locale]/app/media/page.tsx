@@ -161,10 +161,16 @@ export default function MediaPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{ item: MediaItem; url: string } | null>(null);
   const [toDelete, setToDelete] = useState<MediaItem | null>(null);
+  const [transcript, setTranscript] = useState<{ item: MediaItem; text: string; status: string; edited: boolean } | null>(null);
+  const [trBusy, setTrBusy] = useState(false);
+  const openTranscript = async (item: MediaItem) => {
+    const t = await api<{ status: string; text: string | null; editedByLegator: boolean }>("GET", `/vault/media/${item.id}/transcript`);
+    setTranscript({ item, text: t.text ?? "", status: t.status, edited: t.editedByLegator });
+  };
   const fileInput = useRef<HTMLInputElement>(null);
 
   // Poll while files are still being checked.
-  const hasPending = data?.items.some((m) => PENDING.has(m.status)) ?? false;
+  const hasPending = data?.items.some((m) => PENDING.has(m.status) || m.transcriptStatus === "pending" || (m.status === "clean" && m.kind !== "image" && m.transcriptStatus === "none" && Date.now() - new Date(m.createdAt).getTime() < 120_000)) ?? false;
   useEffect(() => {
     if (!hasPending) return;
     const id = setInterval(() => void reload(), 3000);
@@ -257,7 +263,10 @@ export default function MediaPage() {
                 <strong>{m.label ?? t.kinds[m.kind]}</strong>{" "}
                 <span className={`badge ${m.status === "clean" ? "ok" : m.status === "infected" || m.status === "rejected" ? "bad" : ""}`}>
                   {t.statuses[m.status]}
-                </span>
+                </span>{" "}
+                {m.status === "clean" && m.kind !== "image" && m.transcriptStatus && (
+                  <span className={`badge ${m.transcriptStatus === "done" ? "ok" : m.transcriptStatus === "failed" ? "bad" : ""}`}>{t.transcriptStatuses[m.transcriptStatus]}</span>
+                )}
                 <div className="small muted">
                   {t.kinds[m.kind]} · {(m.sizeBytes / 1024 / 1024).toFixed(1)} MB · {new Date(m.createdAt).toLocaleDateString(locale)}
                 </div>
@@ -267,6 +276,11 @@ export default function MediaPage() {
                   <>
                     <Button small variant="secondary" onClick={() => void open(m)}>{t.open}</Button>
                     <Button small variant="secondary" onClick={() => void download(m)}>{t.download}</Button>
+                    {m.kind !== "image" && (
+                      <Button small variant="secondary" onClick={() => void openTranscript(m)}>
+                        {t.transcript}<span className="visually-hidden">: {m.label ?? t.kinds[m.kind]}</span>
+                      </Button>
+                    )}
                   </>
                 )}
                 <Button small variant="danger" onClick={() => setToDelete(m)}>
@@ -286,6 +300,42 @@ export default function MediaPage() {
         <div className="row" style={{ marginBlockStart: "1rem" }}>
           <Button onClick={() => setViewing(null)}>{messages.common.close}</Button>
         </div>
+      </Dialog>
+
+      <Dialog open={transcript !== null} title={t.transcriptTitle} onClose={() => setTranscript(null)}>
+        {transcript && (
+          <div className="stack">
+            <p className="hint">{t.transcriptHelp}</p>
+            <p>
+              <span className="badge">{t.transcriptStatuses[transcript.status as keyof typeof t.transcriptStatuses] ?? transcript.status}</span>
+              {transcript.edited && <span className="badge ok"> {t.edited}</span>}
+            </p>
+            <label htmlFor="transcript-text" className="visually-hidden">{t.transcriptTitle}</label>
+            <textarea id="transcript-text" rows={10} value={transcript.text} onChange={(e) => setTranscript({ ...transcript, text: e.target.value })} />
+            <div className="row">
+              <Button
+                busy={trBusy}
+                disabled={!transcript.text.trim()}
+                onClick={async () => {
+                  setTrBusy(true);
+                  try {
+                    const r = await api<{ status: string; text: string | null; editedByLegator: boolean }>("PUT", `/vault/media/${transcript.item.id}/transcript`, { text: transcript.text });
+                    setTranscript({ ...transcript, text: r.text ?? "", status: r.status, edited: r.editedByLegator });
+                    await reload();
+                  } finally {
+                    setTrBusy(false);
+                  }
+                }}
+              >
+                {t.saveTranscript}
+              </Button>
+              <Button variant="secondary" busy={trBusy} onClick={async () => { setTrBusy(true); try { await api("POST", `/vault/media/${transcript.item.id}/transcript/retry`); await openTranscript(transcript.item); await reload(); } finally { setTrBusy(false); } }}>
+                {t.retryTranscript}
+              </Button>
+              <Button variant="link" onClick={() => setTranscript(null)}>{messages.common.close}</Button>
+            </div>
+          </div>
+        )}
       </Dialog>
 
       <ConfirmDialog

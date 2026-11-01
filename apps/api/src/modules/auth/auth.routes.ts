@@ -16,12 +16,11 @@ import { requireAuth, requireRecentReauth, requireVerified, sessionMeta } from "
 import { parse } from "../../lib/validate.js";
 import type { AuthService } from "./auth.service.js";
 
-/** Strict limits for credential endpoints (per client IP). */
-const strict = (max: number, minutes: number) => ({
-  config: { rateLimit: { max, timeWindow: `${minutes} minutes` } },
-});
-
 export function authRoutes(ctx: AppContext, auth: AuthService) {
+  /** Strict limits for credential endpoints (per client IP). */
+  const strict = (max: number, minutes: number) => ({
+    config: { rateLimit: { max: max * ctx.env.AUTH_RATE_LIMIT_MULTIPLIER, timeWindow: `${minutes} minutes` } },
+  });
   const setSessionCookie = (reply: FastifyReply, token: string, expiresAt: Date) => {
     reply.setCookie(ctx.env.SESSION_COOKIE_NAME, token, {
       httpOnly: true,

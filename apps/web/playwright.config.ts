@@ -20,6 +20,8 @@ const apiEnv = {
   SCANNER: "noop",
   REDIS_URL: process.env.E2E_REDIS_URL ?? "redis://127.0.0.1:6379/13",
   RATE_LIMIT_GLOBAL_PER_MINUTE: "5000",
+  // All E2E browsers share one IP; production refuses any value other than 1.
+  AUTH_RATE_LIMIT_MULTIPLIER: "20",
 };
 
 export default defineConfig({

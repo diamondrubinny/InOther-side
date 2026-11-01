@@ -118,6 +118,10 @@ export class MediaProcessor {
       return "skipped";
     }
     await writeAudit(this.ctx.db, { actorId: null, action: "media.clean", targetType: "media", targetId: asset.id, metadata: { scanner: this.ctx.scanner.name } });
+    // Recordings go on to transcription (consent is checked by the transcription job itself).
+    if ((asset.kind === "audio" || asset.kind === "video") && this.ctx.transcriber) {
+      await this.ctx.mediaQueue.enqueueTranscribe(asset.id).catch((err: unknown) => this.ctx.log.error({ err }, "failed to enqueue transcription"));
+    }
     return "clean";
   }
 

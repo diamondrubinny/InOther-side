@@ -4,7 +4,7 @@ import { pipeline } from "node:stream/promises";
 import { and, asc, count, eq, inArray, lt, notInArray, sql, sum } from "drizzle-orm";
 import type { CreateMediaInput, UpdateMediaInput } from "@inother/shared";
 import type { AppContext } from "../../context.js";
-import { mediaAssets, sealedStories } from "../../db/schema.js";
+import { mediaAssets, mediaTranscripts, sealedStories } from "../../db/schema.js";
 import { writeAudit } from "../../lib/audit.js";
 import type { VaultCipher } from "../../lib/crypto/keys.js";
 import { createDecryptStream, createEncryptStream } from "../../lib/crypto/stream.js";
@@ -178,7 +178,10 @@ export class MediaService {
       .from(mediaAssets)
       .where(eq(mediaAssets.vaultId, vault.id))
       .orderBy(asc(mediaAssets.createdAt));
-    return rows.map((r) => this.present(r, cipher));
+    const transcripts = new Map(
+      (await this.ctx.db.select({ id: mediaTranscripts.mediaId, status: mediaTranscripts.status }).from(mediaTranscripts).where(eq(mediaTranscripts.vaultId, vault.id))).map((t) => [t.id, t.status]),
+    );
+    return rows.map((r) => ({ ...this.present(r, cipher), transcriptStatus: transcripts.get(r.id) ?? "none" }));
   }
 
   async get(userId: string, id: string) {
