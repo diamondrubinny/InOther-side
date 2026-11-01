@@ -4,6 +4,7 @@ import { personaCardSchema, personaFeedbackSchema, uuidParamSchema } from "@inot
 import { requireVerified } from "../../http/auth-guard.js";
 import { AppError } from "../../lib/errors.js";
 import { parse } from "../../lib/validate.js";
+import type { InterviewService } from "./interview.service.js";
 import type { PersonaService } from "./persona.service.js";
 
 const vaultParam = z.object({ vaultId: z.uuid() });
@@ -23,7 +24,15 @@ const settingsSchema = z
   .partial()
   .refine((v) => Object.keys(v).length > 0, { error: "empty_update" });
 
-export function personaRoutes(persona: PersonaService) {
+const interviewStartSchema = z.object({ topicId: z.string().regex(/^[a-z_]{1,32}$/).nullable().default(null) });
+const interviewAnswerSchema = z.object({
+  sittingId: z.uuid(),
+  topicId: z.string().regex(/^[a-z_]{1,32}$/).nullable().default(null),
+  question: z.string().trim().min(1).max(500),
+  answer: z.string().trim().min(1).max(20_000),
+});
+
+export function personaRoutes(persona: PersonaService, interview: InterviewService) {
   return async function (app: FastifyInstance): Promise<void> {
     app.get("/persona/vaults/:vaultId", async (request) => {
       const { userId } = requireVerified(request);
@@ -101,6 +110,26 @@ export function personaRoutes(persona: PersonaService) {
     app.delete("/persona/vaults/:vaultId/memory", async (request, reply) => {
       const { userId } = requireVerified(request);
       await persona.forgetMemory(userId, parse(vaultParam, request.params).vaultId);
+      return reply.status(204).send();
+    });
+
+    // AI interviewer (legator)
+    app.post("/interview/start", { config: { rateLimit: { max: 30, timeWindow: "1 hour" } } }, async (request) => {
+      const { userId } = requireVerified(request);
+      const { topicId } = parse(interviewStartSchema, request.body ?? {});
+      return interview.start(userId, topicId, request.locale);
+    });
+    app.post("/interview/answer", { config: { rateLimit: { max: 120, timeWindow: "1 hour" } } }, async (request) => {
+      const { userId } = requireVerified(request);
+      return interview.answer(userId, parse(interviewAnswerSchema, request.body), request.locale, request.ipHash);
+    });
+    app.get("/interview/entries", async (request) => {
+      const { userId } = requireVerified(request);
+      return { items: await interview.list(userId) };
+    });
+    app.delete("/interview/entries/:id", async (request, reply) => {
+      const { userId } = requireVerified(request);
+      await interview.delete(userId, parse(uuidParamSchema, request.params).id, request.ipHash);
       return reply.status(204).send();
     });
 

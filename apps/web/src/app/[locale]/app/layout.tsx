@@ -37,6 +37,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const items = [
     { href: base, label: n.dashboard },
     { href: `${base}/questions`, label: n.questions },
+    { href: `${base}/interview`, label: messages.interview.nav },
     { href: `${base}/stories`, label: n.stories },
     { href: `${base}/media`, label: n.media },
     { href: `${base}/people`, label: n.people },

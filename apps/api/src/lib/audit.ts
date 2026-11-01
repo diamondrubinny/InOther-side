@@ -64,7 +64,9 @@ export type AuditAction =
   | "persona.profile_generated"
   | "persona.profile_updated"
   | "persona.profile_approved"
-  | "persona.feedback";
+  | "persona.feedback"
+  | "interview.answer_saved"
+  | "interview.answer_deleted";
 
 export interface AuditEntry {
   actorId: string | null;

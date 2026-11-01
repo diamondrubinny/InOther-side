@@ -6,6 +6,7 @@ import type { AppContext } from "../../context.js";
 import {
   consents,
   guidedAnswers,
+  interviewEntries,
   legacyVaults,
   mediaAssets,
   personaMemories,
@@ -200,6 +201,13 @@ export class PersonaService {
       const q = findQuestion(a.questionId);
       const text = cipher.decrypt(a.textEnc, aad("answer", "text", a.id));
       memoryBlocks.push(`<memory id="answer:${a.questionId}">\nQ: ${q?.text.en ?? a.questionId}\nA: ${text}\n</memory>`);
+    }
+    // Answers recorded with the AI interviewer: the legator's own words, often the richest material.
+    const interviews = await this.ctx.db.select().from(interviewEntries).where(eq(interviewEntries.vaultId, v.vault.id)).orderBy(asc(interviewEntries.createdAt));
+    for (const e of interviews) {
+      const q = cipher.decrypt(e.questionEnc, `interview.question:${e.id}`);
+      const ans = cipher.decrypt(e.answerEnc, `interview.answer:${e.id}`);
+      memoryBlocks.push(`<memory id="interview:${e.id}">\nQ: ${q}\nA: ${ans}\n</memory>`);
     }
     for (const r of storyRows) {
       const title = cipher.decrypt(r.titleEnc, aad("story", "title", r.id));

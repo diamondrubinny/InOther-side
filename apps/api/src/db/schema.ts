@@ -505,3 +505,21 @@ export const personaMemories = pgTable(
   },
   (t) => [uniqueIndex("persona_memories_uq").on(t.vaultId, t.userId)],
 );
+
+/** Answers given to the AI interviewer (encrypted). They become persona material. */
+export const interviewEntries = pgTable(
+  "interview_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => legacyVaults.id, { onDelete: "cascade" }),
+    /** Groups the entries of one interview sitting (for follow-up context). */
+    sittingId: uuid("sitting_id").notNull(),
+    topicId: text("topic_id"),
+    questionEnc: bytea("question_enc").notNull(),
+    answerEnc: bytea("answer_enc").notNull(),
+    ...timestamps,
+  },
+  (t) => [index("interview_vault_idx").on(t.vaultId, t.createdAt), index("interview_sitting_idx").on(t.sittingId)],
+);
