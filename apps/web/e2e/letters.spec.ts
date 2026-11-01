@@ -69,7 +69,7 @@ test("scheduled letters: Hebrew-calendar preview, delivery, open-when, pause", a
   // The "open when" letter shows only the event, never its title.
   await expect(heir.getByText("ביום החתונה שלך")).toHaveCount(0);
   await expect(letters.getByRole("listitem").filter({ hasText: "החתונה שלך" })).toBeVisible();
-  await expect(letters.getByText(/עוד 1 מכתבים יגיעו בעתיד/)).toBeVisible();
+  await expect(letters.getByText(/עוד מכתב אחד יגיע בעתיד/)).toBeVisible();
   await expectAccessible(heir);
 
   await letters.getByRole("button", { name: /לקריאה\s*:\s*מכתב פרידה/ }).click();

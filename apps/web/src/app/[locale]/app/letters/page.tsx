@@ -185,7 +185,7 @@ export default function LettersPage() {
         <ul className="plain stack">
           {letters.data.items.map((l) => (
             <li key={l.id} className="card row spread">
-              <span className="stack" style={{ gap: "0.25rem" }}>
+              <span style={{ display: "grid", gap: "0.3rem" }}>
                 <strong>{l.title}</strong>
                 <span className="muted small">{describe(l.trigger)}</span>
                 <span className="small">

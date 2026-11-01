@@ -72,7 +72,7 @@ export function LettersInbox({ vaultId }: { vaultId: string }) {
         <ul className="plain stack">
           {d.delivered.map((l) => (
             <li key={l.id} className="card row spread">
-              <span className="stack" style={{ gap: "0.2rem" }}>
+              <span style={{ display: "grid", gap: "0.3rem" }}>
                 <strong>
                   {l.title} {!l.opened && <span className="badge ok">{t.unread}</span>}
                 </strong>
@@ -97,7 +97,7 @@ export function LettersInbox({ vaultId }: { vaultId: string }) {
           ))}
         </ul>
       )}
-      {d.upcomingCount > 0 && <p className="muted">{format(t.upcoming, { count: d.upcomingCount })}</p>}
+      {d.upcomingCount > 0 && <p className="muted">{d.upcomingCount === 1 ? t.upcomingOne : format(t.upcoming, { count: d.upcomingCount })}</p>}
 
       {d.openWhen.length > 0 && (
         <section className="card stack" aria-labelledby="open-when-h">
