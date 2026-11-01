@@ -17,6 +17,7 @@ interface Overview {
   legatorName: string;
   mode: "preview" | "beneficiary";
   available: boolean;
+  minor?: boolean;
   portrait: { mouthX: number; mouthY: number; eyeY: number; eyeSpread: number } | null;
   hasMemory: boolean;
   voice: "cloned" | "standard" | "none";
@@ -190,7 +191,7 @@ export default function PersonaCallPage() {
       <p className="muted">{format(t.disclosure, { name })}</p>
       {error && <Alert kind="error">{error}</Alert>}
 
-      {!o.available && <Alert kind="info">{t.unavailable}</Alert>}
+      {!o.available && <Alert kind="info">{o.minor ? t.minorBlocked : t.unavailable}</Alert>}
 
       {o.available && !session && (
         <section className="card stack" aria-label={t.startCall}>

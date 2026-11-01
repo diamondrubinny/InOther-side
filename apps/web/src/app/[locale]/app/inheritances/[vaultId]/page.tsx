@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Dialog } from "@/components/Dialog";
+import { LettersInbox } from "@/components/LettersInbox";
 import { Alert, Button, EmptyState, Loading } from "@/components/ui";
 import { errorMessage } from "@/i18n";
 import { useI18n } from "@/i18n/client";
@@ -45,6 +46,7 @@ export default function InheritancePage() {
           <p style={{ whiteSpace: "pre-wrap" }}>{summary.data.openingMessage}</p>
         </section>
       )}
+      <LettersInbox vaultId={vaultId} />
       <section className="stack" aria-labelledby="stories-h">
         <h2 id="stories-h">{t.storiesTitle}</h2>
         {stories.loading ? <Loading /> : stories.data?.items.length ? (

@@ -7,6 +7,8 @@ import { createDb, type DbHandle } from "./db/client.js";
 import { registerErrorHandling } from "./http/error-handler.js";
 import { registerSecurity } from "./http/security.js";
 import { accountRoutes } from "./modules/account/account.routes.js";
+import { messagesRoutes } from "./modules/messages/messages.routes.js";
+import { MessagesService } from "./modules/messages/messages.service.js";
 import { mediaRoutes } from "./modules/media/media.routes.js";
 import { MediaService } from "./modules/media/media.service.js";
 import { TranscriptionService } from "./modules/media/transcription.service.js";
@@ -58,6 +60,7 @@ export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandl
   const release = new ReleaseService(ctx, vaults);
   const inheritance = new InheritanceService(ctx, vaults);
   const persona = new PersonaService(ctx, vaults, ctx.llm, ctx.voice);
+  const messages = new MessagesService(ctx, vaults);
 
   app.decorateRequest("auth", null);
   app.decorateRequest("ipHash", "");
@@ -86,6 +89,7 @@ export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandl
   await app.register(vaultRoutes(vaults, auth.sessions));
   await app.register(mediaRoutes(media, new TranscriptionService(ctx, vaults)));
   await app.register(releaseRoutes(release, inheritance, auth.sessions));
+  await app.register(messagesRoutes(messages));
   await app.register(personaRoutes(persona, new InterviewService(ctx, vaults)));
 
   return { app, ctx };

@@ -90,6 +90,9 @@ pnpm audit       # סריקת חולשות בתלויות
 | PUT | `/vault/media/:id/content` (העלאת הקובץ עצמו) | 🔒 |
 | GET / PATCH / DELETE | `/vault/media/:id` | 🔒 |
 | GET | `/vault/media/:id/content` (הורדה, רק לקבצים נקיים) | 🔒 |
+| CRUD | `/vault/messages[/:id]` — מסרים מתוזמנים (לוח עברי, חגים, אירועי חיים) | 🔒 |
+| GET / PUT | `/inheritances/:vaultId/messages`, `/inheritances/:vaultId/messages/pause` | 🔒 מוטב, כספת פתוחה |
+| GET / POST | `/inheritances/:vaultId/messages/:id`, `.../:id/open`, `.../:id/stop` | 🔒 מוטב (רק שלו) |
 
 ### העלאת קובץ
 1. `POST /vault/media` עם `{kind, contentType, sizeBytes, label?, storyId?}`. נבדקים סוג, גודל ומכסה.

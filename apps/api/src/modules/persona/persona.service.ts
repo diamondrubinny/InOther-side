@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Readable } from "node:stream";
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import { findQuestion, personaCardSchema, type Locale, type PersonaCard } from "@inother/shared";
+import { findQuestion, isMinor, isoDateInTimeZone, personaCardSchema, type Locale, type PersonaCard } from "@inother/shared";
 import type { AppContext } from "../../context.js";
 import {
   consents,
@@ -23,10 +23,11 @@ import {
 import { writeAudit } from "../../lib/audit.js";
 import { VaultCipher } from "../../lib/crypto/keys.js";
 import { createDecryptStream } from "../../lib/crypto/stream.js";
-import { AppError, badRequest, conflict, notFound } from "../../lib/errors.js";
+import { AppError, badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
 import { mediaKeys } from "../../lib/storage.js";
 import { mediaAad, readAll } from "../media/media.service.js";
 import type { VaultService } from "../vault/vault.service.js";
+import { messageMediaIds } from "../messages/messages.service.js";
 import type { LlmProvider } from "./providers/llm.js";
 import type { VoiceProvider } from "./providers/voice.js";
 import { CRISIS_MESSAGE, screenForCrisis } from "./safety.js";
@@ -132,8 +133,24 @@ export class PersonaService {
   // Overview (what the UI may offer)
   // ---------------------------------------------------------------------------
 
+  /**
+   * Minor protection: a beneficiary under 18 (by the birth date the legator entered) cannot talk
+   * with the persona. Written letters and recordings remain available. Requires legal/clinical review.
+   */
+  private async isMinorViewer(v: Viewer): Promise<boolean> {
+    if (v.mode !== "beneficiary" || !v.beneficiaryId) return false;
+    const [b] = await this.ctx.db
+      .select({ id: vaultBeneficiaries.id, birthDateEnc: vaultBeneficiaries.birthDateEnc })
+      .from(vaultBeneficiaries)
+      .where(eq(vaultBeneficiaries.id, v.beneficiaryId));
+    if (!b?.birthDateEnc) return false;
+    const cipher = new VaultCipher(await this.vaults.dekFor(v.vault));
+    return isMinor(cipher.decrypt(b.birthDateEnc, aad("beneficiary", "birth_date", b.id)), isoDateInTimeZone(this.ctx.now(), this.ctx.env.SCHEDULE_TIMEZONE));
+  }
+
   async overview(userId: string, vaultId: string) {
     const v = await this.viewer(userId, vaultId);
+    const minor = await this.isMinorViewer(v);
     const [ai, voiceOk, avatarOk, s] = await Promise.all([
       this.hasConsent(v.vault.legatorUserId, "ai_processing"),
       this.hasConsent(v.vault.legatorUserId, "voice_cloning"),
@@ -144,7 +161,8 @@ export class PersonaService {
     return {
       legatorName: v.legatorName,
       mode: v.mode,
-      available: ai && this.llm !== null,
+      available: ai && this.llm !== null && !minor,
+      minor,
       consent: { ai, voice: voiceOk, avatar: avatarOk },
       portrait: avatarOk && s?.portraitMediaId ? { mouthX: s.mouthX, mouthY: s.mouthY, eyeY: s.eyeY, eyeSpread: s.eyeSpread } : null,
       hasMemory: v.mode === "beneficiary" || v.mode === "preview" ? await this.hasMemory(userId, vaultId) : false,
@@ -239,8 +257,11 @@ export class PersonaService {
       .innerJoin(mediaAssets, eq(mediaAssets.id, mediaTranscripts.mediaId))
       .where(and(eq(mediaTranscripts.vaultId, v.vault.id), eq(mediaTranscripts.status, "done"), eq(mediaAssets.status, "clean")));
     const recordings = new Map<string, string>();
+    // Never let the persona reveal (or play) a file reserved for a scheduled message.
+    const reserved = await messageMediaIds(this.ctx.db, v.vault.id);
     for (const { media, t } of transcribed) {
       if (media.storyId && !visibleStoryIds.has(media.storyId)) continue;
+      if (reserved.has(media.id)) continue;
       if (!t.textEnc) continue;
       const label = media.labelEnc ? cipher.decrypt(media.labelEnc, mediaAad.label(media.id)) : "";
       const text = cipher.decrypt(t.textEnc, `media.transcript:${media.id}`);
@@ -340,6 +361,7 @@ export class PersonaService {
     if (!this.llm) throw new AppError(503, "persona_unavailable");
     const v = await this.viewer(userId, vaultId);
     if (!(await this.hasConsent(v.vault.legatorUserId, "ai_processing"))) throw conflict("persona_not_consented");
+    if (await this.isMinorViewer(v)) throw forbidden("persona_minor_blocked");
     const s = await this.settings(vaultId);
     if (v.mode === "beneficiary") {
       const j = await this.journey(userId, vaultId, v.mode, s);

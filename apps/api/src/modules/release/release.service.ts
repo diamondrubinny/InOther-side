@@ -250,7 +250,7 @@ export class ReleaseService {
     return ex;
   }
 
-  async reportDeath(userId: string, vaultId: string, dateOfDeath: string, ipHash: string | null) {
+  async reportDeath(userId: string, vaultId: string, dateOfDeath: string, ipHash: string | null, afterSunset = false) {
     const ex = await this.requireExecutor(userId, vaultId);
     const { vault } = await this.vaultById(vaultId);
     if (vault.status === "never_release") throw conflict("vault_never_release");
@@ -263,7 +263,7 @@ export class ReleaseService {
     try {
       [request] = await this.ctx.db
         .insert(releaseRequests)
-        .values({ vaultId, reportedByExecutorId: ex.id, dateOfDeath, cancelTokenHash: sha256(cancelToken) })
+        .values({ vaultId, reportedByExecutorId: ex.id, dateOfDeath, deathAfterSunset: afterSunset, cancelTokenHash: sha256(cancelToken) })
         .returning();
     } catch (err) {
       if (isUniqueViolation(err)) throw conflict("report_already_open"); // one open request per vault

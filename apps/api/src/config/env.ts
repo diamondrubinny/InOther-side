@@ -83,6 +83,19 @@ const envSchema = z
     TRANSCRIBER_API_KEY: z.string().optional(),
     TRANSCRIBER_TIMEOUT_MS: z.coerce.number().int().min(10_000).default(600_000),
 
+    /** Civil day boundary for scheduled messages (IANA zone). */
+    SCHEDULE_TIMEZONE: z
+      .string()
+      .default("Asia/Jerusalem")
+      .refine((tz) => {
+        try {
+          new Intl.DateTimeFormat("en", { timeZone: tz });
+          return true;
+        } catch {
+          return false;
+        }
+      }, "invalid time zone"),
+
     /** Multiplies the strict per-IP limits on credential endpoints. Tests only; must be 1 in production. */
     AUTH_RATE_LIMIT_MULTIPLIER: z.coerce.number().int().min(1).max(1000).default(1),
     RATE_LIMIT_GLOBAL_PER_MINUTE: z.coerce.number().int().min(10).default(300),

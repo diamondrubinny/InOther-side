@@ -17,6 +17,7 @@ import { createDecryptStream } from "../../lib/crypto/stream.js";
 import { notFound } from "../../lib/errors.js";
 import { mediaKeys } from "../../lib/storage.js";
 import { mediaAad } from "../media/media.service.js";
+import { deliveredMediaIds, messageMediaIds } from "../messages/messages.service.js";
 import type { VaultService } from "../vault/vault.service.js";
 
 const aad = (table: string, column: string, id: string) => `${table}.${column}:${id}`;
@@ -114,7 +115,9 @@ export class InheritanceService {
 
   private async visibleMedia(vaultId: string, beneficiaryId: string) {
     const storyIds = (await this.visibleStories(vaultId, beneficiaryId)).map((s) => s.id);
-    return this.ctx.db
+    // Files attached to scheduled messages stay hidden until that message reached this beneficiary.
+    const [attached, delivered] = await Promise.all([messageMediaIds(this.ctx.db, vaultId), deliveredMediaIds(this.ctx.db, vaultId, beneficiaryId)]);
+    const rows = await this.ctx.db
       .select()
       .from(mediaAssets)
       .where(
@@ -125,6 +128,7 @@ export class InheritanceService {
         ),
       )
       .orderBy(asc(mediaAssets.createdAt));
+    return rows.filter((r) => !attached.has(r.id) || delivered.has(r.id));
   }
 
   async media(userId: string, vaultId: string) {

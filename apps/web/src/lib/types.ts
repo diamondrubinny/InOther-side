@@ -35,6 +35,8 @@ export interface Person {
   email: string;
   relation: Relation;
   notifyBeforeDeath?: boolean;
+  birthDate?: string | null;
+  bornAfterSunset?: boolean;
   status: "designated" | "invited" | "confirmed" | "accepted" | "declined" | "removed";
 }
 

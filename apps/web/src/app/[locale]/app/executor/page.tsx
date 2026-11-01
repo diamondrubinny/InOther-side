@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { RELEASE_DOCUMENT_MAX_BYTES, RELEASE_DOCUMENT_TYPES } from "@inother/shared";
-import { Alert, Button, EmptyState, Loading, TextField } from "@/components/ui";
+import { Alert, Button, Checkbox, EmptyState, Loading, TextField } from "@/components/ui";
 import { errorMessage, format } from "@/i18n";
 import { useI18n } from "@/i18n/client";
 import { api, ApiError, uploadWithProgress } from "@/lib/api";
@@ -20,6 +20,7 @@ function RoleCard({ role, onChange }: { role: Role; onChange: () => Promise<void
   const { locale, messages } = useI18n();
   const t = messages.release;
   const [date, setDate] = useState("");
+  const [afterSunset, setAfterSunset] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +35,7 @@ function RoleCard({ role, onChange }: { role: Role; onChange: () => Promise<void
     setBusy(true);
     setError(null);
     try {
-      const created = await api<{ id: string }>("POST", `/executor/vaults/${role.vaultId}/reports`, { dateOfDeath: date });
+      const created = await api<{ id: string }>("POST", `/executor/vaults/${role.vaultId}/reports`, { dateOfDeath: date, afterSunset });
       await uploadWithProgress(`/executor/reports/${created.id}/document`, file, file.type, () => {});
       await onChange();
     } catch (err) {
@@ -97,6 +98,7 @@ function RoleCard({ role, onChange }: { role: Role; onChange: () => Promise<void
           <form className="stack" onSubmit={submitReport} noValidate style={{ marginBlockStart: "1rem" }}>
             <p className="muted">{format(t.reportText, { name: role.legatorName })}</p>
             <TextField label={t.dateOfDeath} type="date" value={date} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setDate(e.target.value)} required />
+            <Checkbox label={t.afterSunset} checked={afterSunset} onChange={(e) => setAfterSunset(e.target.checked)} />
             {fileField}
             <div><Button type="submit" busy={busy}>{t.submitReport}</Button></div>
           </form>

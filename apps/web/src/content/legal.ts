@@ -22,7 +22,7 @@ export const LEGAL: Record<LegalDoc, { he: LegalContent; en: LegalContent }> = {
         { heading: "מי אנחנו", paragraphs: ["השירות מופעל על ידי [שם החברה, ח.פ., כתובת]. לפניות פרטיות: [privacy@example.com]. ממונה הגנת הפרטיות: [שם ופרטי קשר]."] },
         { heading: "איזה מידע אנחנו אוספים", paragraphs: [
           "פרטי חשבון: אימייל, שם לתצוגה, שפה מועדפת, סיסמה (נשמרת רק כגיבוב argon2id) ואישור גיל 18+.",
-          "תוכן הכספת: תשובות לשאלות, סיפורים, תמונות, הקלטות וסרטונים שאתם מעלים, ופרטי מוטבים ונאמנים (שם, קרבה ואימייל).",
+          "תוכן הכספת: תשובות לשאלות, סיפורים, תמונות, הקלטות וסרטונים שאתם מעלים, ופרטי מוטבים ונאמנים (שם, קרבה ואימייל, ובאופן אופציונלי תאריך הלידה של מוטב). מסרים מתוזמנים שאתם כותבים נשמרים מוצפנים יחד עם מועד המסירה שבחרתם.",
           "מידע טכני מינימלי: מזהה מוצפן (HMAC) של כתובת ה-IP לצורכי אבטחה ומניעת שימוש לרעה, וסוג הדפדפן לרשימת החיבורים הפעילים. אנחנו לא שומרים את כתובת ה-IP עצמה.",
         ] },
         { heading: "למה ועל איזה בסיס", paragraphs: [
@@ -46,7 +46,7 @@ export const LEGAL: Record<LegalDoc, { he: LegalContent; en: LegalContent }> = {
         { heading: "הזכויות שלכם", paragraphs: [
           "עיון וייצוא (בהגדרות, בקובץ JSON פתוח), תיקון, מחיקה, משיכת הסכמה, והגבלה או התנגדות לעיבוד. אפשר גם להגיש תלונה לרשות להגנת הפרטיות או לרשות פיקוח באיחוד האירופי.",
         ] },
-        { heading: "קטינים", paragraphs: ["השירות מיועד לבני 18 ומעלה בלבד."] },
+        { heading: "קטינים", paragraphs: ["פתיחת חשבון מיועדת לבני 18 ומעלה בלבד.", "מוריש יכול לייעד מוטב קטין ולכתוב לו מסרים. תאריך הלידה (אם הוזן) משמש רק לתזמון מסרים ולהגנה: מוטב מתחת לגיל 18 לא יכול לשוחח עם דמות ה-AI. [מדיניות גישה של הורה/אפוטרופוס — טרם נקבעה, דורשת בדיקה משפטית.]"] },
       ],
     },
     en: {
@@ -56,7 +56,7 @@ export const LEGAL: Record<LegalDoc, { he: LegalContent; en: LegalContent }> = {
         { heading: "Who we are", paragraphs: ["The service is operated by [company name, registration no., address]. Privacy contact: [privacy@example.com]. Data protection officer: [name and contact]."] },
         { heading: "What we collect", paragraphs: [
           "Account data: email, display name, preferred language, password (stored only as an argon2id hash) and confirmation that you are 18+.",
-          "Vault content: answers, stories, photos, recordings and videos you upload, and beneficiary/executor details (name, relationship, email).",
+          "Vault content: answers, stories, photos, recordings and videos you upload, and beneficiary/executor details (name, relationship, email, and optionally a beneficiary's date of birth). Scheduled letters you write are stored encrypted together with the delivery moment you chose.",
           "Minimal technical data: a keyed hash (HMAC) of your IP address for security and abuse prevention, and your browser type for the active-sessions list. We do not store the IP address itself.",
         ] },
         { heading: "Why, and on what basis", paragraphs: [
@@ -80,7 +80,7 @@ export const LEGAL: Record<LegalDoc, { he: LegalContent; en: LegalContent }> = {
         { heading: "Your rights", paragraphs: [
           "Access and export (in Settings, as an open JSON file), rectification, erasure, withdrawal of consent, and restriction of or objection to processing. You may also complain to the Israeli Privacy Protection Authority or an EU supervisory authority.",
         ] },
-        { heading: "Minors", paragraphs: ["The service is for people aged 18 and over only."] },
+        { heading: "Minors", paragraphs: ["Accounts are for people aged 18 and over only.", "A legator may designate a minor beneficiary and write letters for them. The date of birth (if entered) is used only to schedule letters and for protection: a beneficiary under 18 cannot talk with the AI persona. [Parent/guardian access policy — not yet decided; requires legal review.]"] },
       ],
     },
   },

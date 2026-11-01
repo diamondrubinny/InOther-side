@@ -66,8 +66,8 @@ export function releaseRoutes(release: ReleaseService, inheritance: InheritanceS
     app.post("/executor/vaults/:vaultId/reports", strict(5, 60), async (request, reply) => {
       const { userId } = requireVerified(request);
       const { vaultId } = parse(vaultParam, request.params);
-      const { dateOfDeath } = parse(reportDeathSchema, request.body);
-      return reply.status(201).send(await release.reportDeath(userId, vaultId, dateOfDeath, request.ipHash));
+      const { dateOfDeath, afterSunset } = parse(reportDeathSchema, request.body);
+      return reply.status(201).send(await release.reportDeath(userId, vaultId, dateOfDeath, request.ipHash, afterSunset));
     });
     app.put(
       "/executor/reports/:id/document",

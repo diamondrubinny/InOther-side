@@ -69,7 +69,15 @@ export type AuditAction =
   | "interview.answer_deleted"
   | "media.transcribed"
   | "media.transcript_edited"
-  | "media.transcript_deleted";
+  | "media.transcript_deleted"
+  | "message.created"
+  | "message.updated"
+  | "message.deleted"
+  | "message.opened"
+  | "message.event_opened"
+  | "message.stopped"
+  | "message.paused"
+  | "message.resumed";
 
 export interface AuditEntry {
   actorId: string | null;

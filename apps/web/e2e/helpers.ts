@@ -75,3 +75,26 @@ export async function plantCancelToken(): Promise<string> {
   }
   return token;
 }
+
+/**
+ * Simulates a verified, completed release of the newest vault plus the scheduler's "on release"
+ * deliveries (the scheduler itself is covered by API tests; E2E has no worker).
+ */
+export async function releaseNewestVaultWithLetters(): Promise<void> {
+  const db = sql();
+  try {
+    const [v] = await db`SELECT id FROM legacy_vaults ORDER BY created_at DESC LIMIT 1`;
+    if (!v) throw new Error("no vault");
+    await db`INSERT INTO release_requests (vault_id, status, date_of_death, cancel_token_hash, released_at)
+             VALUES (${v.id}, 'released', current_date - 20, ${Buffer.alloc(32)}, now())`;
+    await db`UPDATE legacy_vaults SET status = 'released' WHERE id = ${v.id}`;
+    await db`INSERT INTO message_deliveries (message_id, beneficiary_id, occurrence_on)
+             SELECT r.message_id, r.beneficiary_id, current_date FROM scheduled_message_recipients r
+             JOIN scheduled_messages m ON m.id = r.message_id
+             WHERE m.vault_id = ${v.id} AND m.trigger_kind = 'on_release'`;
+    await db`UPDATE scheduled_message_recipients r SET status = 'done', initialized = true
+             FROM scheduled_messages m WHERE m.id = r.message_id AND m.vault_id = ${v.id} AND m.trigger_kind = 'on_release'`;
+  } finally {
+    await db.end();
+  }
+}

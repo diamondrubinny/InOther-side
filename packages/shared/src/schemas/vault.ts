@@ -33,15 +33,28 @@ export type UpdateVaultInput = z.infer<typeof updateVaultSchema>;
 
 const personName = z.string().trim().min(1).max(120);
 
-export const beneficiaryInputSchema = z.object({
+const beneficiaryFields = {
   name: personName,
   relation: relationSchema,
   email: emailSchema,
   /** Whether the beneficiary is told now (while the legator is alive) that they were designated. */
-  notifyBeforeDeath: z.boolean().default(false),
+  notifyBeforeDeath: z.boolean(),
+  /** Optional, used only to schedule birthday/age messages and to protect minors. */
+  birthDate: z.iso.date().nullable(),
+  /** Born after sunset: the Hebrew date is that of the next day. */
+  bornAfterSunset: z.boolean(),
+};
+
+export const beneficiaryInputSchema = z.object({
+  ...beneficiaryFields,
+  notifyBeforeDeath: beneficiaryFields.notifyBeforeDeath.default(false),
+  birthDate: beneficiaryFields.birthDate.default(null),
+  bornAfterSunset: beneficiaryFields.bornAfterSunset.default(false),
 });
 export type BeneficiaryInput = z.infer<typeof beneficiaryInputSchema>;
-export const beneficiaryUpdateSchema = beneficiaryInputSchema
+/** Partial update WITHOUT defaults, so omitted fields are left unchanged. */
+export const beneficiaryUpdateSchema = z
+  .object(beneficiaryFields)
   .partial()
   .refine((v) => Object.keys(v).length > 0, { error: "empty_update" });
 

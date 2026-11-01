@@ -5,3 +5,5 @@ export * from "./schemas/media.js";
 export * from "./schemas/release.js";
 export * from "./schemas/persona.js";
 export * from "./questions.js";
+export * from "./schemas/messages.js";
+export * from "./calendar/index.js";

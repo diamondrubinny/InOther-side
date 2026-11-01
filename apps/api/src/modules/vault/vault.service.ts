@@ -20,6 +20,8 @@ import {
   guidedAnswers,
   legacyVaults,
   mediaAssets,
+  scheduledMessageRecipients,
+  scheduledMessages,
   sealedStories,
   storyAudienceMembers,
   vaultBeneficiaries,
@@ -212,12 +214,19 @@ export class VaultService {
       email: cipher.decrypt(r.emailEnc, aad("beneficiary", "email", r.id)),
       relation: r.relation,
       notifyBeforeDeath: r.notifyBeforeDeath,
+      birthDate: r.birthDateEnc ? cipher.decrypt(r.birthDateEnc, aad("beneficiary", "birth_date", r.id)) : null,
+      bornAfterSunset: r.bornAfterSunset,
       status: r.status,
       createdAt: r.createdAt,
     };
   }
 
+  private assertBirthDate(birthDate: string | null | undefined): void {
+    if (birthDate && (birthDate > this.ctx.now().toISOString().slice(0, 10) || birthDate < "1900-01-01")) throw badRequest("invalid_birth_date");
+  }
+
   async addBeneficiary(userId: string, input: BeneficiaryInput, ipHash: string | null) {
+    this.assertBirthDate(input.birthDate);
     const { vault, cipher } = await this.getOwned(userId);
     this.assertEditable(vault);
     await this.assertBelowLimit(vaultBeneficiaries, vaultBeneficiaries.vaultId, vault.id, LIMITS.beneficiaries);
@@ -231,6 +240,8 @@ export class VaultService {
         emailEnc: cipher.encrypt(input.email, aad("beneficiary", "email", id)),
         relation: input.relation,
         notifyBeforeDeath: input.notifyBeforeDeath,
+        birthDateEnc: input.birthDate ? cipher.encrypt(input.birthDate, aad("beneficiary", "birth_date", id)) : null,
+        bornAfterSunset: input.bornAfterSunset,
       })
       .returning();
     await writeAudit(this.ctx.db, { actorId: userId, action: "vault.beneficiary.created", targetType: "beneficiary", targetId: id, ipHash });
@@ -238,6 +249,7 @@ export class VaultService {
   }
 
   async updateBeneficiary(userId: string, id: string, input: Partial<BeneficiaryInput>, ipHash: string | null) {
+    this.assertBirthDate(input.birthDate);
     const { vault, cipher } = await this.getOwned(userId);
     this.assertEditable(vault);
     const set: Partial<typeof vaultBeneficiaries.$inferInsert> = { updatedAt: this.ctx.now() };
@@ -245,6 +257,10 @@ export class VaultService {
     if (input.email !== undefined) set.emailEnc = cipher.encrypt(input.email, aad("beneficiary", "email", id));
     if (input.relation !== undefined) set.relation = input.relation;
     if (input.notifyBeforeDeath !== undefined) set.notifyBeforeDeath = input.notifyBeforeDeath;
+    if (input.birthDate !== undefined) {
+      set.birthDateEnc = input.birthDate ? cipher.encrypt(input.birthDate, aad("beneficiary", "birth_date", id)) : null;
+    }
+    if (input.bornAfterSunset !== undefined) set.bornAfterSunset = input.bornAfterSunset;
     const [row] = await this.ctx.db
       .update(vaultBeneficiaries)
       .set(set)
@@ -526,6 +542,19 @@ export class VaultService {
       this.listStories(userId),
     ]);
     const stories = await Promise.all(storyList.map((s) => this.getStory(userId, s.id)));
+    const { vault, cipher } = await this.getOwned(userId);
+    const msgRows = await this.ctx.db.select().from(scheduledMessages).where(eq(scheduledMessages.vaultId, vault.id)).orderBy(asc(scheduledMessages.createdAt));
+    const msgRecipients = msgRows.length
+      ? await this.ctx.db.select().from(scheduledMessageRecipients).where(inArray(scheduledMessageRecipients.messageId, msgRows.map((m) => m.id)))
+      : [];
+    const messages = msgRows.map((m) => ({
+      id: m.id,
+      title: cipher.decrypt(m.titleEnc, `message.title:${m.id}`),
+      body: cipher.decrypt(m.bodyEnc, `message.body:${m.id}`),
+      trigger: JSON.parse(cipher.decrypt(m.triggerEnc, `message.trigger:${m.id}`)) as unknown,
+      beneficiaryIds: msgRecipients.filter((r) => r.messageId === m.id).map((r) => r.beneficiaryId),
+      mediaId: m.mediaId,
+    }));
     await writeAudit(this.ctx.db, { actorId: userId, action: "vault.exported", targetType: "vault", targetId: summary.id, ipHash });
     return {
       format: "inother-legacy-export",
@@ -537,6 +566,7 @@ export class VaultService {
       locale,
       answers: answers.map((a) => ({ ...a, question: findQuestion(a.questionId)?.text[locale] ?? null })),
       stories,
+      scheduledMessages: messages,
     };
   }
 

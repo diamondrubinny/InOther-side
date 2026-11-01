@@ -5,6 +5,8 @@ export const tokenBodySchema = z.object({ token: z.string().min(20).max(200) });
 export const reportDeathSchema = z.object({
   /** ISO date (YYYY-MM-DD). Must not be in the future (checked on the server against its clock). */
   dateOfDeath: z.iso.date(),
+  /** Passed away after sunset: the Hebrew date (for the yahrzeit) is that of the next day. */
+  afterSunset: z.boolean().default(false),
 });
 export type ReportDeathInput = z.infer<typeof reportDeathSchema>;
 

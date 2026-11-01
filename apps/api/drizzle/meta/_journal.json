@@ -57,6 +57,13 @@
       "when": 1793540666782,
       "tag": "0007_transcripts",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793544337483,
+      "tag": "0008_scheduled_messages",
+      "breakpoints": true
     }
   ]
 }

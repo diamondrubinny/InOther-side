@@ -226,6 +226,11 @@ export const vaultBeneficiaries = pgTable(
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     invitedAt: timestamp("invited_at", { withTimezone: true }),
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    /** Optional date of birth (encrypted): schedules birthday/age messages, protects minors. */
+    birthDateEnc: bytea("birth_date_enc"),
+    bornAfterSunset: boolean("born_after_sunset").notNull().default(false),
+    /** Beneficiary paused scheduled messages ("not ready yet"); deliveries are held meanwhile. */
+    messagesPausedAt: timestamp("messages_paused_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [index("beneficiaries_vault_idx").on(t.vaultId)],
@@ -400,6 +405,7 @@ export const releaseRequests = pgTable(
     reportedByExecutorId: uuid("reported_by_executor_id").references(() => vaultExecutors.id, { onDelete: "set null" }),
     status: releaseStatusEnum("status").notNull().default("awaiting_document"),
     dateOfDeath: date("date_of_death").notNull(),
+    deathAfterSunset: boolean("death_after_sunset").notNull().default(false),
     documentMime: text("document_mime"),
     documentSize: integer("document_size"),
     reviewedByUserId: uuid("reviewed_by_user_id"),
@@ -542,3 +548,85 @@ export const mediaTranscripts = pgTable("media_transcripts", {
   attempts: integer("attempts").notNull().default(0),
   ...timestamps,
 });
+
+// ---------------------------------------------------------------------------
+// Scheduled messages (life events & Hebrew calendar)
+// ---------------------------------------------------------------------------
+
+export const triggerKindEnum = pgEnum("message_trigger_kind", [
+  "on_release",
+  "date",
+  "birthday",
+  "age",
+  "yahrzeit",
+  "after_death",
+  "holiday",
+  "annual",
+  "life_event",
+]);
+
+/** A letter from the legator, delivered after release on a date or life event. Content + trigger encrypted. */
+export const scheduledMessages = pgTable(
+  "scheduled_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => legacyVaults.id, { onDelete: "cascade" }),
+    titleEnc: bytea("title_enc").notNull(),
+    bodyEnc: bytea("body_enc").notNull(),
+    /** JSON MessageTrigger, encrypted. */
+    triggerEnc: bytea("trigger_enc").notNull(),
+    /** Kind only (no dates) is kept in clear: needed to list "open when..." letters. */
+    triggerKind: triggerKindEnum("trigger_kind").notNull(),
+    mediaId: uuid("media_id").references(() => mediaAssets.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [index("messages_vault_idx").on(t.vaultId)],
+);
+
+export const recipientStatusEnum = pgEnum("message_recipient_status", ["pending", "done", "stopped"]);
+
+export const scheduledMessageRecipients = pgTable(
+  "scheduled_message_recipients",
+  {
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => scheduledMessages.id, { onDelete: "cascade" }),
+    beneficiaryId: uuid("beneficiary_id")
+      .notNull()
+      .references(() => vaultBeneficiaries.id, { onDelete: "cascade" }),
+    status: recipientStatusEnum("status").notNull().default("pending"),
+    /** False until the first occurrence is computed after release. */
+    initialized: boolean("initialized").notNull().default(false),
+    nextDueOn: date("next_due_on"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("message_recipient_uq").on(t.messageId, t.beneficiaryId),
+    index("message_recipient_due_idx").on(t.status, t.nextDueOn),
+  ],
+);
+
+/** One delivered occurrence of a message to one recipient. Unique per occurrence (idempotent scheduler). */
+export const messageDeliveries = pgTable(
+  "message_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => scheduledMessages.id, { onDelete: "cascade" }),
+    beneficiaryId: uuid("beneficiary_id")
+      .notNull()
+      .references(() => vaultBeneficiaries.id, { onDelete: "cascade" }),
+    occurrenceOn: date("occurrence_on").notNull(),
+    /** Delivered while the recipient had paused messages: hidden and not emailed until resumed. */
+    held: boolean("held").notNull().default(false),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }).notNull().defaultNow(),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("message_delivery_uq").on(t.messageId, t.beneficiaryId, t.occurrenceOn),
+    index("message_delivery_beneficiary_idx").on(t.beneficiaryId),
+  ],
+);

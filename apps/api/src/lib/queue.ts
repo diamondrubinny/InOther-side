@@ -6,7 +6,8 @@ export type MediaJob =
   | { type: "scan"; assetId: string }
   | { type: "transcribe"; assetId: string }
   | { type: "cleanup" }
-  | { type: "finalize_releases" };
+  | { type: "finalize_releases" }
+  | { type: "deliver_messages" };
 
 /** Abstraction over the job queue so request handlers don't depend on BullMQ directly. */
 export interface MediaQueue {

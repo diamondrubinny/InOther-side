@@ -7,6 +7,7 @@ import { MEDIA_QUEUE_NAME, redisConnection, type MediaJob } from "./lib/queue.js
 import { MediaProcessor, RetryableScanError } from "./modules/media/media.processor.js";
 import { MediaService } from "./modules/media/media.service.js";
 import { TranscriptionService } from "./modules/media/transcription.service.js";
+import { MessagesService } from "./modules/messages/messages.service.js";
 import { ReleaseService } from "./modules/release/release.service.js";
 import { VaultService } from "./modules/vault/vault.service.js";
 
@@ -24,6 +25,7 @@ async function main(): Promise<void> {
   const mediaService = new MediaService(ctx, vaultService);
   const releaseService = new ReleaseService(ctx, vaultService);
   const transcriptionService = new TranscriptionService(ctx, vaultService);
+  const messagesService = new MessagesService(ctx, vaultService);
   const connection = redisConnection(env.REDIS_URL);
 
   const worker = new Worker<MediaJob>(
@@ -31,7 +33,16 @@ async function main(): Promise<void> {
     async (job) => {
       if (job.data.type === "finalize_releases") {
         const released = await releaseService.finalizeDue();
-        if (released > 0) log.info({ released }, "vaults released after waiting period");
+        if (released > 0) {
+          log.info({ released }, "vaults released after waiting period");
+          // "On release" letters should be waiting when beneficiaries first open the vault.
+          log.info(await messagesService.deliverDue(), "scheduled messages");
+        }
+        return;
+      }
+      if (job.data.type === "deliver_messages") {
+        const result = await messagesService.deliverDue();
+        if (result.initialized + result.delivered > 0) log.info(result, "scheduled messages");
         return;
       }
       if (job.data.type === "transcribe") {
@@ -59,6 +70,7 @@ async function main(): Promise<void> {
   // Hourly cleanup of abandoned reservations.
   const scheduler = new Queue<MediaJob>(MEDIA_QUEUE_NAME, { connection });
   await scheduler.upsertJobScheduler("cleanup-stale-uploads", { every: 3600_000 }, { name: "cleanup", data: { type: "cleanup" } });
+  await scheduler.upsertJobScheduler("deliver-messages", { every: 3600_000 }, { name: "deliver_messages", data: { type: "deliver_messages" } });
   await scheduler.upsertJobScheduler("finalize-releases", { every: 15 * 60_000 }, { name: "finalize_releases", data: { type: "finalize_releases" } });
 
   const shutdown = async () => {
