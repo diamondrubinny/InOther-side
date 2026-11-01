@@ -162,7 +162,7 @@ describe("portrait", () => {
     const img = await req(legator, "GET", `/persona/vaults/${vaultId}/portrait`);
     expect(img.statusCode).toBe(200);
     expect(img.headers["content-type"]).toBe("image/png");
-    expect((await req(legator, "GET", `/persona/vaults/${vaultId}`)).json().portrait).toEqual({ mouthX: 500, mouthY: 700 });
+    expect((await req(legator, "GET", `/persona/vaults/${vaultId}`)).json().portrait).toEqual({ mouthX: 500, mouthY: 700, eyeY: 420, eyeSpread: 120 });
   });
 });
 

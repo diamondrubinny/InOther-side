@@ -60,7 +60,11 @@ export type AuditAction =
   | "persona.safety_event"
   | "persona.settings_updated"
   | "persona.voice_cloned"
-  | "persona.voice_deleted";
+  | "persona.voice_deleted"
+  | "persona.profile_generated"
+  | "persona.profile_updated"
+  | "persona.profile_approved"
+  | "persona.feedback";
 
 export interface AuditEntry {
   actorId: string | null;

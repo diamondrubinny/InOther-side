@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type MouseEvent } from "react";
+import { PersonaCardEditor } from "@/components/PersonaCardEditor";
 import { Alert, Button, Loading, SelectField, TextField } from "@/components/ui";
 import { errorMessage } from "@/i18n";
 import { useI18n } from "@/i18n/client";
@@ -15,6 +16,8 @@ interface Settings {
   portraitMediaId: string | null;
   mouthX: number;
   mouthY: number;
+  eyeY: number;
+  eyeSpread: number;
   voiceStatus: "none" | "processing" | "ready" | "failed";
   sessionsLimit: number;
   minutesLimit: number;
@@ -57,6 +60,8 @@ export default function PersonaSettingsPage() {
         portraitMediaId: form.portraitMediaId,
         mouthX: form.mouthX,
         mouthY: form.mouthY,
+        eyeY: form.eyeY,
+        eyeSpread: form.eyeSpread,
         sessionsLimit: form.sessionsLimit,
         minutesLimit: form.minutesLimit,
       });
@@ -101,14 +106,25 @@ export default function PersonaSettingsPage() {
             <div className="portrait-picker" onClick={pickMouth} aria-hidden="true">
               <img src={preview} alt="" />
               <span className="mouth-dot" style={{ left: `${form.mouthX / 10}%`, top: `${form.mouthY / 10}%` }} />
+              <span className="mouth-dot eye" style={{ left: `${(form.mouthX - form.eyeSpread) / 10}%`, top: `${form.eyeY / 10}%` }} />
+              <span className="mouth-dot eye" style={{ left: `${(form.mouthX + form.eyeSpread) / 10}%`, top: `${form.eyeY / 10}%` }} />
             </div>
             <div className="grid">
               <TextField label={t.mouthX} type="number" min={0} max={1000} value={form.mouthX} onChange={(e) => setForm({ ...form, mouthX: Number(e.target.value) })} />
               <TextField label={t.mouthY} type="number" min={0} max={1000} value={form.mouthY} onChange={(e) => setForm({ ...form, mouthY: Number(e.target.value) })} />
             </div>
+            <fieldset>
+              <legend>{t.eyesTitle}</legend>
+              <div className="grid">
+                <TextField label={t.eyeY} type="number" min={0} max={1000} value={form.eyeY} onChange={(e) => setForm({ ...form, eyeY: Number(e.target.value) })} />
+                <TextField label={t.eyeSpread} type="number" min={10} max={450} value={form.eyeSpread} onChange={(e) => setForm({ ...form, eyeSpread: Number(e.target.value) })} />
+              </div>
+            </fieldset>
           </>
         )}
       </section>
+
+      {has("ai_processing") && <PersonaCardEditor />}
 
       <section className="card stack" aria-labelledby="voice-h">
         <h2 id="voice-h">{t.voiceTitle}</h2>

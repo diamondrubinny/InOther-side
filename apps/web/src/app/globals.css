@@ -220,3 +220,5 @@ dialog::backdrop { background: rgb(0 0 0 / 45%); }
 .portrait-picker { position: relative; display: inline-block; cursor: crosshair; }
 .portrait-picker img { max-inline-size: 320px; display: block; border-radius: 8px; }
 .mouth-dot { position: absolute; inline-size: 14px; block-size: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #e0245e; border: 2px solid #fff; pointer-events: none; }
+
+.mouth-dot.eye { background: #1a5fb4; }

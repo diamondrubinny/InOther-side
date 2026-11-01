@@ -17,7 +17,8 @@ interface Overview {
   legatorName: string;
   mode: "preview" | "beneficiary";
   available: boolean;
-  portrait: { mouthX: number; mouthY: number } | null;
+  portrait: { mouthX: number; mouthY: number; eyeY: number; eyeSpread: number } | null;
+  hasMemory: boolean;
   voice: "cloned" | "standard" | "none";
   limits: { sessions: number; minutes: number };
   journey: { sessionsUsed: number; farewellDone: boolean; complete: boolean };
@@ -57,6 +58,10 @@ export default function PersonaCallPage() {
   const [muted, setMuted] = useState(false);
   const [listening, setListening] = useState(false);
   const [portraitUrl, setPortraitUrl] = useState<string | null>(null);
+  const [remember, setRemember] = useState(false);
+  const [correcting, setCorrecting] = useState<number | null>(null);
+  const [correction, setCorrection] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
   const player = useRef<SpeechPlayer | null>(null);
   const recognition = useRef<Recognition | null>(null);
   const transcriptEnd = useRef<HTMLDivElement>(null);
@@ -84,7 +89,7 @@ export default function PersonaCallPage() {
     player.current = new SpeechPlayer();
     player.current.unlock(); // inside the click handler (autoplay policy)
     try {
-      const res = await api<{ sessionId: string; kind: string }>("POST", `/persona/vaults/${vaultId}/sessions`, { kind });
+      const res = await api<{ sessionId: string; kind: string }>("POST", `/persona/vaults/${vaultId}/sessions`, { kind, remember });
       setSession({ id: res.sessionId, kind: res.kind });
       setLines([{ who: "system", text: format(t.disclosure, { name }) }]);
     } catch (err) {
@@ -197,6 +202,19 @@ export default function PersonaCallPage() {
                 )}
               </div>
               {o.mode === "beneficiary" && <p className="hint">{t.farewellHelp}</p>}
+              <div className="check">
+                <input type="checkbox" id="remember" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                <label htmlFor="remember">{t.remember}</label>
+              </div>
+              <p className="hint">{t.rememberHelp}</p>
+              {o.hasMemory && (
+                <div>
+                  <Button small variant="secondary" onClick={async () => { await api("DELETE", `/persona/vaults/${vaultId}/memory`); setNotice(t.forgotten); await overview.reload(); }}>
+                    {t.forget}
+                  </Button>
+                </div>
+              )}
+              {notice && <Alert kind="success">{notice}</Alert>}
             </>
           )}
           <p className="small">
@@ -211,6 +229,7 @@ export default function PersonaCallPage() {
             <AvatarCanvas
               imageUrl={portraitUrl}
               mouth={o.portrait ? { x: o.portrait.mouthX, y: o.portrait.mouthY } : null}
+              eyes={o.portrait ? { y: o.portrait.eyeY, spread: o.portrait.eyeSpread } : null}
               level={level}
               label={format(t.portraitAlt, { name })}
               initials={initials}
@@ -223,6 +242,29 @@ export default function PersonaCallPage() {
                 <div key={i} className={`bubble ${l.who}`}>
                   <span className="visually-hidden">{l.who === "me" ? `${t.you}: ` : l.who === "persona" ? `${name}: ` : ""}</span>
                   {l.text || (l.who === "persona" && busy ? t.thinking : "")}
+                  {/* Proximity test: the legator corrects their own persona. */}
+                  {o.mode === "preview" && l.who === "persona" && l.text && !(busy && i === lines.length - 1) && (
+                    <div className="row" style={{ marginBlockStart: "0.4rem" }}>
+                      <Button small variant="link" onClick={async () => { await api("POST", "/persona/feedback", { reply: l.text, verdict: "like_me" }); setNotice(messages.common.saved); }}>{t.likeMe}</Button>
+                      <Button small variant="link" onClick={() => { setCorrecting(i); setCorrection(""); }}>{t.notLikeMe}</Button>
+                    </div>
+                  )}
+                  {correcting === i && (
+                    <form
+                      className="stack"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!correction.trim()) return;
+                        await api("POST", "/persona/feedback", { reply: l.text, verdict: "not_like_me", correction });
+                        setCorrecting(null);
+                        setNotice(t.correctionSaved);
+                      }}
+                    >
+                      <label htmlFor={`corr-${i}`}>{t.correctionLabel}</label>
+                      <input id={`corr-${i}`} type="text" value={correction} onChange={(e) => setCorrection(e.target.value)} maxLength={500} />
+                      <div><Button small type="submit">{t.sendCorrection}</Button></div>
+                    </form>
+                  )}
                 </div>
               ))}
               <div ref={transcriptEnd} />
@@ -246,6 +288,7 @@ export default function PersonaCallPage() {
             </div>
             {micSupported && <p className="hint">{t.micNotice}</p>}
             {showHelp && <Alert kind="warning">{t.helpText}</Alert>}
+            {notice && <Alert kind="success">{notice}</Alert>}
           </div>
         </div>
       )}

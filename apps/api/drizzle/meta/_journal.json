@@ -36,6 +36,13 @@
       "when": 1793475135138,
       "tag": "0004_persona",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793512840407,
+      "tag": "0005_persona_profile",
+      "breakpoints": true
     }
   ]
 }

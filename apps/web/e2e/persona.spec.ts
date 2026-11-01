@@ -42,13 +42,22 @@ test("legator sets up the animated persona and has a preview call", async ({ pag
   await page.getByLabel("מיקום אנכי (0–1000)").fill("720");
   await page.getByRole("button", { name: "יצירת הקול מההקלטות שלי" }).click();
   await expect(page.getByText("מוכן", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "שמירה" }).click();
+  await page.getByRole("button", { name: "שמירה", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "נשמר" })).toBeVisible();
+
+  // Personality card: generated from the legator's words, reviewed and approved.
+  await page.getByRole("button", { name: "יצירת כרטיס מהחומרים שלי" }).click();
+  await expect(page.getByText("טיוטה, טרם אושר")).toBeVisible();
+  await expect(page.getByLabel(/ביטויים שאני אומר/)).toHaveValue(/יהיה בסדר/);
+  await page.getByLabel(/תכונות אופי/).fill("אופטימי\nחם");
+  await page.getByRole("button", { name: "אישור הכרטיס" }).click();
+  await expect(page.getByText("מאושר", { exact: true })).toBeVisible();
   await expectAccessible(page);
 
   // Preview call.
   await page.getByRole("link", { name: "שיחת ניסיון עם הדמות שלי" }).click();
   await expect(page.getByRole("heading", { name: "שיחה עם אברהם כהן" })).toBeVisible();
+  await expect(page.getByLabel("לזכור את השיחות שלנו")).not.toBeChecked(); // memory is opt-in
   await page.getByRole("button", { name: "התחלת שיחה" }).click();
   await expect(page.getByRole("img", { name: "דיוקן מונפש של אברהם כהן (הדמיית AI)" })).toBeVisible();
   await expect(page.getByText("הדמיית AI")).toBeVisible();
@@ -62,6 +71,12 @@ test("legator sets up the animated persona and has a preview call", async ({ pag
   await page.getByRole("button", { name: "שליחה" }).click();
   await expect(page.getByRole("log")).toContainText("יהיה בסדר");
   await expect.poll(() => audioRequests.length, { timeout: 10_000 }).toBeGreaterThan(0);
+
+  // Proximity test: "that's not me" + correction.
+  await page.getByRole("button", { name: "זה לא אני" }).first().click();
+  await page.getByLabel("איך הייתי אומר/ת את זה באמת?").fill("הייתי אומר את זה עם חיוך ובלי מילים גבוהות");
+  await page.getByRole("button", { name: "שמירת התיקון" }).click();
+  await expect(page.getByText("התיקון נשמר ויחייב את הדמות מעכשיו.")).toBeVisible();
 
   // Crisis: the persona steps aside and help is shown.
   await page.getByLabel("מה תרצה/י להגיד?").fill("אני לא רוצה לחיות יותר");

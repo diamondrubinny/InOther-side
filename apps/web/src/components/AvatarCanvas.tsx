@@ -11,12 +11,15 @@ import { useEffect, useRef } from "react";
 export function AvatarCanvas({
   imageUrl,
   mouth,
+  eyes,
   level,
   label,
   initials,
 }: {
   imageUrl: string | null;
   mouth: { x: number; y: number } | null;
+  /** Eye line (per-mille of height) and half-distance (per-mille of width) around mouth.x. */
+  eyes?: { y: number; spread: number } | null;
   level: () => number;
   label: string;
   initials: string;
@@ -30,10 +33,33 @@ export function AvatarCanvas({
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.classList.contains("a11y-no-motion");
     const img = new Image();
     let ready = false;
+    /** Skin tone just above each eye, sampled once: used to paint the eyelids when blinking. */
+    let lidColors: string[] = [];
     if (imageUrl) {
-      img.onload = () => (ready = true);
+      img.onload = () => {
+        ready = true;
+        if (eyes && mouth) {
+          try {
+            const off = document.createElement("canvas");
+            off.width = img.width;
+            off.height = img.height;
+            const o = off.getContext("2d");
+            o?.drawImage(img, 0, 0);
+            lidColors = [-1, 1].map((side) => {
+              const x = Math.round(((mouth.x + side * eyes.spread) / 1000) * img.width);
+              const y = Math.round(((eyes.y - 45) / 1000) * img.height);
+              const d = o?.getImageData(Math.max(0, x), Math.max(0, y), 1, 1).data;
+              return d ? `rgb(${d[0]}, ${d[1]}, ${d[2]})` : "rgb(200,170,150)";
+            });
+          } catch {
+            lidColors = [];
+          }
+        }
+      };
       img.src = imageUrl;
     }
+    // Natural blinking: every 2.5-6s, ~150ms (not with reduced motion).
+    let nextBlink = performance.now() + 2500 + Math.random() * 3500;
     let smooth = 0;
     let frame = 0;
     const W = canvas.width;
@@ -58,6 +84,24 @@ export function AvatarCanvas({
         ctx.scale(breathe, breathe);
         ctx.translate(-W / 2, -H / 2);
         ctx.drawImage(img, dx, dy, dw, dh);
+
+        if (eyes && mouth && lidColors.length === 2 && !reduceMotion) {
+          const since = t - nextBlink;
+          if (since > 0) {
+            const p = since < 75 ? since / 75 : since < 150 ? 1 - (since - 75) / 75 : 0;
+            if (since >= 150) nextBlink = t + 2500 + Math.random() * 3500;
+            if (p > 0) {
+              [-1, 1].forEach((side, i) => {
+                const ex = dx + ((mouth.x + side * eyes.spread) / 1000) * dw;
+                const ey = dy + (eyes.y / 1000) * dh;
+                ctx.fillStyle = lidColors[i] ?? "rgb(200,170,150)";
+                ctx.beginPath();
+                ctx.ellipse(ex, ey - dh * 0.012 * (1 - p), dw * 0.055, dh * 0.026 * p + 0.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+              });
+            }
+          }
+        }
 
         if (mouth) {
           const mx = dx + (mouth.x / 1000) * dw;
@@ -99,7 +143,7 @@ export function AvatarCanvas({
     };
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [imageUrl, mouth, level, initials]);
+  }, [imageUrl, mouth, eyes, level, initials]);
 
   return <canvas ref={canvasRef} width={480} height={540} role="img" aria-label={label} className="avatar-canvas" />;
 }

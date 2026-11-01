@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { uuidParamSchema } from "@inother/shared";
+import { personaCardSchema, personaFeedbackSchema, uuidParamSchema } from "@inother/shared";
 import { requireVerified } from "../../http/auth-guard.js";
 import { AppError } from "../../lib/errors.js";
 import { parse } from "../../lib/validate.js";
@@ -8,13 +8,15 @@ import type { PersonaService } from "./persona.service.js";
 
 const vaultParam = z.object({ vaultId: z.uuid() });
 const segmentParam = z.object({ id: z.uuid(), segmentId: z.uuid() });
-const startSchema = z.object({ kind: z.enum(["regular", "farewell"]).default("regular") });
+const startSchema = z.object({ kind: z.enum(["regular", "farewell"]).default("regular"), remember: z.boolean().default(false) });
 const messageSchema = z.object({ text: z.string().trim().min(1).max(2000) });
 const settingsSchema = z
   .object({
     portraitMediaId: z.uuid().nullable(),
     mouthX: z.number().int().min(0).max(1000),
     mouthY: z.number().int().min(0).max(1000),
+    eyeY: z.number().int().min(0).max(1000),
+    eyeSpread: z.number().int().min(10).max(450),
     sessionsLimit: z.number().int().min(1).max(50),
     minutesLimit: z.number().int().min(5).max(120),
   })
@@ -37,8 +39,8 @@ export function personaRoutes(persona: PersonaService) {
 
     app.post("/persona/vaults/:vaultId/sessions", { config: { rateLimit: { max: 20, timeWindow: "1 hour" } } }, async (request, reply) => {
       const { userId } = requireVerified(request);
-      const { kind } = parse(startSchema, request.body ?? {});
-      const session = await persona.start(userId, parse(vaultParam, request.params).vaultId, kind, request.locale, request.ipHash);
+      const { kind, remember } = parse(startSchema, request.body ?? {});
+      const session = await persona.start(userId, parse(vaultParam, request.params).vaultId, kind, request.locale, request.ipHash, remember);
       return reply.status(201).send(session);
     });
 
@@ -94,6 +96,31 @@ export function personaRoutes(persona: PersonaService) {
       const { userId } = requireVerified(request);
       await persona.end(parse(uuidParamSchema, request.params).id, userId);
       return reply.status(204).send();
+    });
+
+    app.delete("/persona/vaults/:vaultId/memory", async (request, reply) => {
+      const { userId } = requireVerified(request);
+      await persona.forgetMemory(userId, parse(vaultParam, request.params).vaultId);
+      return reply.status(204).send();
+    });
+
+    // Personality card (legator)
+    app.get("/persona/profile", async (request) => {
+      const { userId } = requireVerified(request);
+      return persona.getProfile(userId);
+    });
+    app.post("/persona/profile/generate", { config: { rateLimit: { max: 10, timeWindow: "1 hour" } } }, async (request) => {
+      const { userId } = requireVerified(request);
+      return persona.generateProfile(userId, request.ipHash);
+    });
+    app.put("/persona/profile", async (request) => {
+      const { userId } = requireVerified(request);
+      const body = parse(z.object({ card: personaCardSchema, approve: z.boolean().default(false) }), request.body);
+      return persona.updateProfile(userId, body.card, body.approve, request.ipHash);
+    });
+    app.post("/persona/feedback", async (request) => {
+      const { userId } = requireVerified(request);
+      return persona.feedback(userId, parse(personaFeedbackSchema, request.body), request.ipHash);
     });
 
     // Legator configuration

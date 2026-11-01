@@ -438,6 +438,9 @@ export const personaSettings = pgTable("persona_settings", {
   /** Mouth position on the portrait, in per-mille of width/height (0-1000). */
   mouthX: integer("mouth_x").notNull().default(500),
   mouthY: integer("mouth_y").notNull().default(680),
+  /** Eye line (per-mille of height) and half-distance between the eyes (per-mille of width), for blinking. */
+  eyeY: integer("eye_y").notNull().default(420),
+  eyeSpread: integer("eye_spread").notNull().default(120),
   /** Provider reference of the cloned voice, encrypted with the master key. */
   voiceRefEnc: bytea("voice_ref_enc"),
   voiceStatus: voiceStatusEnum("voice_status").notNull().default("none"),
@@ -468,4 +471,37 @@ export const personaSessions = pgTable(
     safetyFlag: boolean("safety_flag").notNull().default(false),
   },
   (t) => [index("persona_sessions_user_idx").on(t.userId, t.vaultId)],
+);
+
+export const personaProfileStatusEnum = pgEnum("persona_profile_status", ["draft", "approved"]);
+
+/** Personality card (encrypted JSON, vault key). Beneficiaries only ever get an approved card. */
+export const personaProfiles = pgTable("persona_profiles", {
+  vaultId: uuid("vault_id")
+    .primaryKey()
+    .references(() => legacyVaults.id, { onDelete: "cascade" }),
+  cardEnc: bytea("card_enc").notNull(),
+  status: personaProfileStatusEnum("status").notNull().default("draft"),
+  version: integer("version").notNull().default(1),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  ...timestamps,
+});
+
+/**
+ * Opt-in memory of past conversations, per beneficiary: a short encrypted summary (never a
+ * transcript). Deleted on request, with the vault, or when the user deletes their account.
+ */
+export const personaMemories = pgTable(
+  "persona_memories",
+  {
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => legacyVaults.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    summaryEnc: bytea("summary_enc").notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("persona_memories_uq").on(t.vaultId, t.userId)],
 );
