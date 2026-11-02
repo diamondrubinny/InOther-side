@@ -23,6 +23,7 @@
 | 14 | **Next.js 15** (לא 16) + PostCSS 8.5.30 דרך override | גרסה יציבה ומוכרת. ה-PostCSS המקורי של Next 15 פגיע | Next 16: שינויים שוברים (middleware→proxy) |
 | 15 | **CSS רגיל עם logical properties** (בלי Tailwind) | RTL ו-LTR מאותו קוד, ופחות תלויות | Tailwind |
 | 16 | **i18n עצמי וטיפוסי** | מילון עברי כמקור, והקומפיילר ובדיקה מוודאים מפתחות ו-placeholders בכל שפה | next-intl |
+| 19 | **משתמש DB בהרשאות מינימליות + rate limit ב-Redis + images לא-root** | פריצה לאפליקציה לא מוחקת טבלאות/audit; מגבלות brute-force לא מתחלקות בין מופעים | superuser אחד לכל דבר |
 | 18 | **לוח עברי אלגוריתמי בתוך `packages/shared`** (ללא תלות), מאומת מול ICU לכל יום 1900–2100 | אותו מנוע בשרת ובדפדפן (תצוגה מקדימה זהה למסירה בפועל), בלי רישיון GPL | `@hebcal/core` (GPL-2.0) |
 | 17 | **הדפדפן פונה ל-API ישירות** (CORS + credentials). האזור האישי מרונדר בצד הלקוח | מידע אישי לא עובר דרך שרת ה-Next ולא נשמר במטמון | proxy דרך Next / SSR עם העברת cookies |
 

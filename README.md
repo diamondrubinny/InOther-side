@@ -124,5 +124,18 @@ pnpm audit       # סריקת חולשות בתלויות
 - **פרטיות:** הסכמות נפרדות לכל מטרה עם היסטוריה, ייצוא מלא בפורמט פתוח, ומחיקת חשבון מלאה.
 - **קבצים:** רשימת סוגים מותרים, אימות הסוג האמיתי לפי הבייטים, מגבלות גודל ומכסה, הסגר, סריקת ClamAV שנכשלת בצורה סגורה (בלי סריקה הקובץ לא יוגש), שמות אקראיים בלי שם הקובץ המקורי, הצפנת זרם (STREAM / AES-256-GCM) עם מפתח הכספת, והורדה תמיד כ-attachment.
 
+## פריסה (Docker)
+```bash
+docker build -f infra/docker/api.Dockerfile -t inother-api .            # API + worker + מיגרציות
+docker build -f infra/docker/web.Dockerfile --build-arg NEXT_PUBLIC_API_URL=https://api.example.com -t inother-web .
+docker run inother-api node dist/db/migrate.js     # עם DATABASE_MIGRATION_URL (בעלים)
+psql "$DATABASE_MIGRATION_URL" -v app_password="$APP_DB_PASSWORD" -f infra/db-roles.sql   # פעם אחת
+docker run inother-api                              # API (DATABASE_URL = inother_app)
+docker run inother-api node dist/worker.js          # worker
+```
+ה-images רצים כמשתמש לא-root, עם healthcheck. `/health` = liveness, `/ready` = DB + Redis.
+הבדיקה `test/hardening.test.ts` יוצרת את ה-role ולכן משתמש ה-DB של הבדיקות צריך `CREATEROLE` (ב-docker-compose הוא superuser).
+רשימת הבדיקות המלאה לפני השקה: [docs/PRODUCTION-CHECKLIST.md](docs/PRODUCTION-CHECKLIST.md).
+
 ## לפני פרודקשן (פתוח)
 ראה [`docs/BUILD.md`](docs/BUILD.md#לפני-פרודקשן-פתוח). בין היתר: KMS מנוהל, Redis ל-rate limit, RLS, בדיקת חדירות וייעוץ משפטי.

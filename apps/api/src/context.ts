@@ -1,4 +1,5 @@
 import type { FastifyBaseLogger } from "fastify";
+import { Redis } from "ioredis";
 import type { Env } from "./config/env.js";
 import type { Database } from "./db/client.js";
 import { LocalKeyProvider, type KeyProvider } from "./lib/crypto/keys.js";
@@ -25,6 +26,8 @@ export interface AppContext {
   llm: LlmProvider | null;
   voice: VoiceProvider | null;
   transcriber: Transcriber | null;
+  /** Shared Redis client for rate-limit counters (null with the in-memory store). */
+  redis: Redis | null;
   log: FastifyBaseLogger;
   /** Injectable clock for deterministic tests. */
   now: () => Date;
@@ -80,6 +83,10 @@ export function createContext(env: Env, db: Database, log: FastifyBaseLogger, ov
           : env.TRANSCRIBER === "mock"
             ? new MockTranscriber()
             : null,
+    redis:
+      env.RATE_LIMIT_STORE === "redis"
+        ? new Redis(env.REDIS_URL, { connectTimeout: 2000, maxRetriesPerRequest: 1, enableOfflineQueue: false, lazyConnect: true })
+        : null,
     log,
     now: overrides.now ?? (() => new Date()),
   };

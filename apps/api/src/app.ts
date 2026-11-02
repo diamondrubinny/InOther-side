@@ -1,5 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
+import { sql } from "drizzle-orm";
 import { DEFAULT_LOCALE, isLocale, negotiateLocale } from "@inother/shared";
 import type { Env } from "./config/env.js";
 import { createContext, type AppContext, type ContextOverrides } from "./context.js";
@@ -25,6 +27,15 @@ import { AuthService } from "./modules/auth/auth.service.js";
 import { vaultRoutes } from "./modules/vault/vault.routes.js";
 import { VaultService } from "./modules/vault/vault.service.js";
 
+function canResolve(mod: string): boolean {
+  try {
+    createRequire(import.meta.url).resolve(mod);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface BuiltApp {
   app: FastifyInstance;
   ctx: AppContext;
@@ -38,10 +49,12 @@ export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandl
     requestIdHeader: false,
     logger: {
       level: env.LOG_LEVEL,
-      transport: env.NODE_ENV === "development" ? { target: "pino-pretty" } : undefined,
+      // Pretty logs only for a developer at a terminal, and only if the dev dependency exists
+      // (production images don't ship it; JSON logs everywhere else).
+      transport: env.NODE_ENV === "development" && process.stdout.isTTY && canResolve("pino-pretty") ? { target: "pino-pretty" } : undefined,
       // Never log credentials, cookies or bodies.
       redact: {
-        paths: ["req.headers.cookie", "req.headers.authorization", 'res.headers["set-cookie"]', "*.password", "*.token"],
+        paths: ["req.headers.cookie", "req.headers.authorization", 'req.headers["x-capture-token"]', 'res.headers["set-cookie"]', "*.password", "*.token"],
         censor: "[redacted]",
       },
       serializers: {
@@ -53,8 +66,13 @@ export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandl
 
   const dbHandle = overrides.dbHandle ?? createDb(env.DATABASE_URL, env.DATABASE_POOL_MAX);
   const ctx = createContext(env, dbHandle.db, app.log, overrides);
+  // Connect before serving: with the offline queue disabled, early requests would otherwise fail.
+  if (ctx.redis) await ctx.redis.connect();
   if (!overrides.dbHandle) app.addHook("onClose", async () => dbHandle.close());
   app.addHook("onClose", async () => ctx.mediaQueue.close());
+  app.addHook("onClose", async () => {
+    if (ctx.redis) await ctx.redis.quit().catch(() => ctx.redis?.disconnect());
+  });
 
   const auth = new AuthService(ctx);
   const vaults = new VaultService(ctx);
@@ -84,7 +102,26 @@ export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandl
     else if (request.auth && isLocale(request.auth.user.locale)) request.locale = request.auth.user.locale;
   });
 
+  // Liveness: the process is up. Readiness: it can serve (DB and, if used, Redis reachable).
   app.get("/health", { config: { rateLimit: false } }, async () => ({ status: "ok" }));
+  app.get("/ready", { config: { rateLimit: false } }, async (_request, reply) => {
+    const checks: Record<string, "ok" | "fail"> = {};
+    try {
+      await dbHandle.db.execute(sql`select 1`);
+      checks.db = "ok";
+    } catch {
+      checks.db = "fail";
+    }
+    if (ctx.redis) {
+      try {
+        checks.redis = (await ctx.redis.ping()) === "PONG" ? "ok" : "fail";
+      } catch {
+        checks.redis = "fail";
+      }
+    }
+    const ok = Object.values(checks).every((v) => v === "ok");
+    return reply.status(ok ? 200 : 503).send({ status: ok ? "ready" : "unavailable", checks });
+  });
 
   await app.register(authRoutes(ctx, auth));
   await app.register(accountRoutes(ctx, auth.sessions, vaults, persona));

@@ -1,6 +1,8 @@
-import type { NextConfig } from "next";
-
-const config: NextConfig = {
+/**
+ * Plain ESM (not .ts) so production images can load it without the TypeScript compiler.
+ * @type {import("next").NextConfig}
+ */
+const config = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ["@inother/shared"],

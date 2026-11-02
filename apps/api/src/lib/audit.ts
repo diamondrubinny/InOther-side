@@ -84,7 +84,8 @@ export type AuditAction =
   | "capture.preferences_updated"
   | "capture.suggestion_created"
   | "capture.suggestion_accepted"
-  | "capture.suggestion_dismissed";
+  | "capture.suggestion_dismissed"
+  | "retention.purged";
 
 export interface AuditEntry {
   actorId: string | null;

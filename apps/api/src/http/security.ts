@@ -40,7 +40,11 @@ export async function registerSecurity(app: FastifyInstance, ctx: AppContext): P
     global: true,
     max: ctx.env.RATE_LIMIT_GLOBAL_PER_MINUTE,
     timeWindow: "1 minute",
-    // Note: in-memory store. Use a Redis store when running more than one instance.
+    // Shared counters across instances when RATE_LIMIT_STORE=redis (required in production);
+    // otherwise brute-force limits multiply by the number of instances.
+    ...(ctx.redis ? { redis: ctx.redis, nameSpace: "inother-rl:" } : {}),
+    // Fail closed: if the counter store is unavailable, refuse rather than allow unlimited attempts.
+    skipOnError: false,
     keyGenerator: (req) => req.ipHash,
     errorResponseBuilder: (_req, context) => {
       const err = new AppError(429, "too_many_requests");

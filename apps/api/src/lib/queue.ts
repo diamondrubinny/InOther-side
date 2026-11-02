@@ -8,7 +8,8 @@ export type MediaJob =
   | { type: "cleanup" }
   | { type: "finalize_releases" }
   | { type: "deliver_messages" }
-  | { type: "weekly_questions" };
+  | { type: "weekly_questions" }
+  | { type: "retention" };
 
 /** Abstraction over the job queue so request handlers don't depend on BullMQ directly. */
 export interface MediaQueue {

@@ -98,6 +98,8 @@ const envSchema = z
 
     /** Multiplies the strict per-IP limits on credential endpoints. Tests only; must be 1 in production. */
     AUTH_RATE_LIMIT_MULTIPLIER: z.coerce.number().int().min(1).max(1000).default(1),
+    /** Rate-limit counters: "memory" (single instance / dev) or "redis" (shared across instances; required in production). */
+    RATE_LIMIT_STORE: z.enum(["memory", "redis"]).default("memory"),
     RATE_LIMIT_GLOBAL_PER_MINUTE: z.coerce.number().int().min(10).default(300),
     BODY_LIMIT_BYTES: z.coerce.number().int().min(1024).max(10 * 1024 * 1024).default(256 * 1024),
   })
@@ -123,6 +125,9 @@ const envSchema = z
       }
       if (env.LLM_PROVIDER === "mock" || env.VOICE_PROVIDER === "mock" || env.TRANSCRIBER === "mock") {
         ctx.addIssue({ code: "custom", path: ["LLM_PROVIDER"], message: "mock AI providers are not allowed in production" });
+      }
+      if (env.RATE_LIMIT_STORE !== "redis") {
+        ctx.addIssue({ code: "custom", path: ["RATE_LIMIT_STORE"], message: "production requires redis (limits must be shared across instances)" });
       }
       if (env.AUTH_RATE_LIMIT_MULTIPLIER !== 1) {
         ctx.addIssue({ code: "custom", path: ["AUTH_RATE_LIMIT_MULTIPLIER"], message: "must be 1 in production" });

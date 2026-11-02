@@ -46,6 +46,8 @@ export interface HarnessOptions {
   scanner?: MalwareScanner;
   /** Process uploaded media immediately (default) or leave jobs for the test to run. */
   processInline?: boolean;
+  /** Run the APP with this DB URL (e.g. the least-privilege role); the harness keeps the owner connection. */
+  appDatabaseUrl?: string;
 }
 
 let ipCounter = 1;
@@ -63,6 +65,7 @@ export async function createHarness(envOverrides: Record<string, string> = {}, o
         legacy_vaults, vault_beneficiaries, vault_executors, sealed_stories, sealed_story_audience, guided_answers,
         media_assets, invitations, release_requests, persona_settings, persona_sessions, persona_profiles, persona_memories, interview_entries, media_transcripts, scheduled_messages, scheduled_message_recipients, message_deliveries, question_suggestions, capture_links, capture_preferences CASCADE`,
   );
+  const appDb = options.appDatabaseUrl ? createDb(options.appDatabaseUrl, 5) : null;
   const storageDir = await mkdtemp(path.join(os.tmpdir(), "inother-storage-"));
   const storage = new LocalStorage(storageDir);
   const holder: { processor?: MediaProcessor } = {};
@@ -82,7 +85,7 @@ export async function createHarness(envOverrides: Record<string, string> = {}, o
   };
   const { app, ctx } = await buildApp(env, {
     mailer,
-    dbHandle: db,
+    dbHandle: appDb ?? db,
     now: () => clock.now,
     storage,
     mediaQueue: queue,
@@ -117,6 +120,7 @@ export async function createHarness(envOverrides: Record<string, string> = {}, o
     request,
     async close() {
       await app.close();
+      await appDb?.close();
       await db.close();
       await rm(storageDir, { recursive: true, force: true });
     },

@@ -8,6 +8,7 @@ import { MediaProcessor, RetryableScanError } from "./modules/media/media.proces
 import { MediaService } from "./modules/media/media.service.js";
 import { TranscriptionService } from "./modules/media/transcription.service.js";
 import { CaptureService } from "./modules/capture/capture.service.js";
+import { RetentionService } from "./modules/ops/retention.service.js";
 import { MessagesService } from "./modules/messages/messages.service.js";
 import { ReleaseService } from "./modules/release/release.service.js";
 import { VaultService } from "./modules/vault/vault.service.js";
@@ -28,6 +29,7 @@ async function main(): Promise<void> {
   const transcriptionService = new TranscriptionService(ctx, vaultService);
   const messagesService = new MessagesService(ctx, vaultService);
   const captureService = new CaptureService(ctx, vaultService, mediaService);
+  const retentionService = new RetentionService(ctx);
   const connection = redisConnection(env.REDIS_URL);
 
   const worker = new Worker<MediaJob>(
@@ -40,6 +42,10 @@ async function main(): Promise<void> {
           // "On release" letters should be waiting when beneficiaries first open the vault.
           log.info(await messagesService.deliverDue(), "scheduled messages");
         }
+        return;
+      }
+      if (job.data.type === "retention") {
+        log.info(await retentionService.run(), "retention purge");
         return;
       }
       if (job.data.type === "weekly_questions") {
@@ -77,6 +83,7 @@ async function main(): Promise<void> {
   // Hourly cleanup of abandoned reservations.
   const scheduler = new Queue<MediaJob>(MEDIA_QUEUE_NAME, { connection });
   await scheduler.upsertJobScheduler("cleanup-stale-uploads", { every: 3600_000 }, { name: "cleanup", data: { type: "cleanup" } });
+  await scheduler.upsertJobScheduler("retention", { every: 24 * 3600_000 }, { name: "retention", data: { type: "retention" } });
   await scheduler.upsertJobScheduler("weekly-questions", { every: 3600_000 }, { name: "weekly_questions", data: { type: "weekly_questions" } });
   await scheduler.upsertJobScheduler("deliver-messages", { every: 3600_000 }, { name: "deliver_messages", data: { type: "deliver_messages" } });
   await scheduler.upsertJobScheduler("finalize-releases", { every: 15 * 60_000 }, { name: "finalize_releases", data: { type: "finalize_releases" } });
@@ -86,6 +93,7 @@ async function main(): Promise<void> {
     await worker.close();
     await scheduler.close();
     await ctx.mediaQueue.close();
+    await ctx.redis?.quit().catch(() => ctx.redis?.disconnect());
     await dbHandle.close();
     process.exit(0);
   };

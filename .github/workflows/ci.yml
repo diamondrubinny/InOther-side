@@ -2,8 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "docs/**", "feat/**"]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -75,3 +76,16 @@ jobs:
         with:
           name: playwright-traces
           path: apps/web/test-results
+
+  images:
+    # Builds (does not push) the production images, so a broken Dockerfile fails CI.
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f infra/docker/api.Dockerfile -t inother-api:ci .
+      - run: docker build -f infra/docker/web.Dockerfile --build-arg NEXT_PUBLIC_API_URL=https://api.example.invalid -t inother-web:ci .
+      - name: Images run as a non-root user
+        run: |
+          test "$(docker run --rm inother-api:ci id -u)" != "0"
+          test "$(docker run --rm inother-web:ci id -u)" != "0"

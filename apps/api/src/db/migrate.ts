@@ -16,9 +16,11 @@ export async function runMigrations(databaseUrl: string): Promise<void> {
 
 // Allow `tsx src/db/migrate.ts`.
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const url = process.env.DATABASE_URL;
+  // Migrations run as the schema OWNER; the app itself connects with the least-privilege role
+  // (see infra/db-roles.sql). Falls back to DATABASE_URL for local development.
+  const url = process.env.DATABASE_MIGRATION_URL ?? process.env.DATABASE_URL;
   if (!url) {
-    console.error("DATABASE_URL is required");
+    console.error("DATABASE_MIGRATION_URL or DATABASE_URL is required");
     process.exit(1);
   }
   runMigrations(url)
