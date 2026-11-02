@@ -9,6 +9,8 @@ import { registerSecurity } from "./http/security.js";
 import { accountRoutes } from "./modules/account/account.routes.js";
 import { messagesRoutes } from "./modules/messages/messages.routes.js";
 import { MessagesService } from "./modules/messages/messages.service.js";
+import { captureRoutes } from "./modules/capture/capture.routes.js";
+import { CaptureService } from "./modules/capture/capture.service.js";
 import { mediaRoutes } from "./modules/media/media.routes.js";
 import { MediaService } from "./modules/media/media.service.js";
 import { TranscriptionService } from "./modules/media/transcription.service.js";
@@ -90,6 +92,7 @@ export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandl
   await app.register(mediaRoutes(media, new TranscriptionService(ctx, vaults)));
   await app.register(releaseRoutes(release, inheritance, auth.sessions));
   await app.register(messagesRoutes(messages));
+  await app.register(captureRoutes(ctx, new CaptureService(ctx, vaults, media)));
   await app.register(personaRoutes(persona, new InterviewService(ctx, vaults)));
 
   return { app, ctx };

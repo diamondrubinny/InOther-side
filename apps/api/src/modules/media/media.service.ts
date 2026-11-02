@@ -56,6 +56,8 @@ export class MediaService {
       storyId: r.storyId,
       createdAt: r.createdAt,
       scannedAt: r.scannedAt,
+      /** Came in through a password-free capture link (shown to the legator). */
+      viaLink: r.captureLinkId !== null,
     };
   }
 
@@ -69,7 +71,7 @@ export class MediaService {
   }
 
   /** Step 1: reserve an upload slot after checking type, size and quota. */
-  async create(userId: string, input: CreateMediaInput, ipHash: string | null) {
+  async create(userId: string, input: CreateMediaInput, ipHash: string | null, extra: { captureLinkId?: string } = {}) {
     const { vault, cipher } = await this.vaults.getOwned(userId);
     this.vaults.assertEditable(vault);
     await this.assertStoryInVault(vault.id, input.storyId);
@@ -97,6 +99,7 @@ export class MediaService {
         declaredMime: input.contentType,
         declaredSize: input.sizeBytes,
         labelEnc: input.label ? cipher.encrypt(input.label, mediaAad.label(id)) : null,
+        captureLinkId: extra.captureLinkId ?? null,
       })
       .returning();
     await writeAudit(this.ctx.db, {

@@ -46,12 +46,14 @@ export function uploadWithProgress(
   file: Blob,
   contentType: string,
   onProgress: (percent: number) => void,
+  headers: Record<string, string> = {},
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", `${API_URL}${path}`);
     xhr.withCredentials = true;
     xhr.setRequestHeader("Content-Type", contentType);
+    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     };

@@ -108,6 +108,7 @@ export class InterviewService {
       question: cipher.decrypt(r.questionEnc, qAad(r.id)),
       answer: cipher.decrypt(r.answerEnc, aAad(r.id)),
       createdAt: r.createdAt,
+      viaLink: r.captureLinkId !== null,
     }));
   }
 

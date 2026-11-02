@@ -93,6 +93,10 @@ pnpm audit       # סריקת חולשות בתלויות
 | CRUD | `/vault/messages[/:id]` — מסרים מתוזמנים (לוח עברי, חגים, אירועי חיים) | 🔒 |
 | GET / PUT | `/inheritances/:vaultId/messages`, `/inheritances/:vaultId/messages/pause` | 🔒 מוטב, כספת פתוחה |
 | GET / POST | `/inheritances/:vaultId/messages/:id`, `.../:id/open`, `.../:id/stop` | 🔒 מוטב (רק שלו) |
+| GET / POST / DELETE | `/vault/capture-links[/:id]`, GET/PUT `/vault/capture-preferences` | 🔒 |
+| GET / POST | `/vault/suggestions`, `/vault/suggestions/:id/accept`, `/dismiss` | 🔒 |
+| GET / POST | `/inheritances/:vaultId/suggestions` | 🔒 מוטב מאושר, כספת בבנייה |
+| POST / PUT | `/capture/session`, `/capture/answer`, `/capture/audio` (טוקן חד-פעמי, בלי חשבון) | ציבורי + rate limit |
 
 ### העלאת קובץ
 1. `POST /vault/media` עם `{kind, contentType, sizeBytes, label?, storyId?}`. נבדקים סוג, גודל ומכסה.

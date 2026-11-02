@@ -303,6 +303,8 @@ export const guidedAnswers = pgTable(
       .references(() => legacyVaults.id, { onDelete: "cascade" }),
     questionId: text("question_id").notNull(),
     textEnc: bytea("text_enc").notNull(),
+    /** Set when the latest answer came in through a password-free capture link. */
+    captureLinkId: uuid("capture_link_id"),
     ...timestamps,
   },
   (t) => [uniqueIndex("answers_vault_question_uq").on(t.vaultId, t.questionId)],
@@ -350,6 +352,8 @@ export const mediaAssets = pgTable(
     labelEnc: bytea("label_enc"),
     scanAttempts: integer("scan_attempts").notNull().default(0),
     scannedAt: timestamp("scanned_at", { withTimezone: true }),
+    /** Set when the recording came in through a password-free capture link. */
+    captureLinkId: uuid("capture_link_id"),
     ...timestamps,
   },
   (t) => [index("media_vault_idx").on(t.vaultId, t.createdAt), index("media_status_idx").on(t.status, t.createdAt)],
@@ -525,6 +529,8 @@ export const interviewEntries = pgTable(
     topicId: text("topic_id"),
     questionEnc: bytea("question_enc").notNull(),
     answerEnc: bytea("answer_enc").notNull(),
+    /** Set when the answer came in through a password-free capture link. */
+    captureLinkId: uuid("capture_link_id"),
     ...timestamps,
   },
   (t) => [index("interview_vault_idx").on(t.vaultId, t.createdAt), index("interview_sitting_idx").on(t.sittingId)],
@@ -630,3 +636,63 @@ export const messageDeliveries = pgTable(
     index("message_delivery_beneficiary_idx").on(t.beneficiaryId),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// Password-free capture (one-question links), weekly question, family suggestions
+// ---------------------------------------------------------------------------
+
+export const suggestionStatusEnum = pgEnum("suggestion_status", ["pending", "accepted", "dismissed", "answered"]);
+
+/** A question a beneficiary suggests to the living legator. The suggester never sees the answer. */
+export const questionSuggestions = pgTable(
+  "question_suggestions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => legacyVaults.id, { onDelete: "cascade" }),
+    beneficiaryId: uuid("beneficiary_id")
+      .notNull()
+      .references(() => vaultBeneficiaries.id, { onDelete: "cascade" }),
+    textEnc: bytea("text_enc").notNull(),
+    status: suggestionStatusEnum("status").notNull().default("pending"),
+    ...timestamps,
+  },
+  (t) => [index("suggestions_vault_idx").on(t.vaultId, t.status), index("suggestions_beneficiary_idx").on(t.beneficiaryId)],
+);
+
+export const captureSourceEnum = pgEnum("capture_source", ["catalog", "suggestion", "custom"]);
+export const captureViaEnum = pgEnum("capture_via", ["manual", "weekly"]);
+
+/** One-question, one-answer link. Only the SHA-256 of the token is stored. */
+export const captureLinks = pgTable(
+  "capture_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => legacyVaults.id, { onDelete: "cascade" }),
+    tokenHash: bytea("token_hash").notNull(),
+    source: captureSourceEnum("source").notNull(),
+    questionId: text("question_id"),
+    suggestionId: uuid("suggestion_id").references(() => questionSuggestions.id, { onDelete: "set null" }),
+    /** Question text for custom/suggestion links (encrypted). Catalog links are localized at view time. */
+    questionEnc: bytea("question_enc"),
+    createdVia: captureViaEnum("created_via").notNull().default("manual"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("capture_token_uq").on(t.tokenHash), index("capture_vault_idx").on(t.vaultId, t.createdAt)],
+);
+
+export const capturePreferences = pgTable("capture_preferences", {
+  vaultId: uuid("vault_id")
+    .primaryKey()
+    .references(() => legacyVaults.id, { onDelete: "cascade" }),
+  weeklyEnabled: boolean("weekly_enabled").notNull().default(false),
+  weekday: integer("weekday").notNull().default(0),
+  lastSentOn: date("last_sent_on"),
+  ...timestamps,
+});

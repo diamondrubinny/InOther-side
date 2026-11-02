@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ALLOWED_CONTENT_TYPES, MAX_MEDIA_BYTES, type MediaKind } from "@inother/shared";
 import { ConfirmDialog, Dialog } from "@/components/Dialog";
+import { VoiceRecorder, baseType } from "@/components/VoiceRecorder";
 import { Alert, Button, EmptyState, Loading, ProgressBar, SelectField, TextField } from "@/components/ui";
 import { errorMessage, format } from "@/i18n";
 import { useI18n } from "@/i18n/client";
@@ -18,10 +19,6 @@ function kindOf(type: string): MediaKind | null {
   if (type.startsWith("audio/")) return "audio";
   if (type.startsWith("video/")) return "video";
   return null;
-}
-
-function baseType(type: string): string {
-  return type.split(";")[0]?.trim().toLowerCase() ?? "";
 }
 
 /** Creates the reservation, then streams the bytes. Returns an error code or null. */
@@ -52,98 +49,17 @@ async function uploadBlob(
 function Recorder({ onSaved }: { onSaved: () => void }) {
   const { messages } = useI18n();
   const t = messages.media;
-  const [state, setState] = useState<"idle" | "recording" | "recorded" | "saving">("idle");
-  const [seconds, setSeconds] = useState(0);
-  const [blob, setBlob] = useState<Blob | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const recorder = useRef<MediaRecorder | null>(null);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (timer.current) clearInterval(timer.current);
-      recorder.current?.stream.getTracks().forEach((tr) => tr.stop());
-    },
-    [],
-  );
-  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
-
-  const supported = typeof window !== "undefined" && "MediaRecorder" in window && !!navigator.mediaDevices?.getUserMedia;
-  if (!supported) return <Alert kind="info">{t.recorderUnsupported}</Alert>;
-
-  const start = async () => {
-    setError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = ["audio/webm", "audio/mp4", "audio/ogg"].find((m) => MediaRecorder.isTypeSupported(m));
-      const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      const chunks: Blob[] = [];
-      rec.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data);
-      rec.onstop = () => {
-        stream.getTracks().forEach((tr) => tr.stop());
-        const recorded = new Blob(chunks, { type: baseType(rec.mimeType || mimeType || "audio/webm") });
-        setBlob(recorded);
-        setPreviewUrl(URL.createObjectURL(recorded));
-        setState("recorded");
-      };
-      recorder.current = rec;
-      rec.start(1000);
-      setSeconds(0);
-      timer.current = setInterval(() => setSeconds((s) => s + 1), 1000);
-      setState("recording");
-    } catch {
-      setError(t.micDenied);
-    }
-  };
-
-  const stop = () => {
-    if (timer.current) clearInterval(timer.current);
-    recorder.current?.stop();
-  };
-
-  const discard = () => {
-    setBlob(null);
-    setPreviewUrl(null);
-    setState("idle");
-  };
-
-  const save = async () => {
-    if (!blob) return;
-    setState("saving");
-    const code = await uploadBlob(blob, {}, setProgress);
-    if (code) {
-      setError(errorMessage(messages, code));
-      setState("recorded");
-    } else {
-      discard();
-      onSaved();
-    }
-  };
-
   return (
     <section className="card stack" aria-labelledby="rec-title">
       <h2 id="rec-title">{t.recordTitle}</h2>
       <p className="muted">{t.recordHelp}</p>
-      {error && <Alert kind="error">{error}</Alert>}
-      {state === "idle" && <div><Button onClick={start}>● {t.recordStart}</Button></div>}
-      {state === "recording" && (
-        <div className="row">
-          <span role="status" aria-live="polite">{format(t.recording, { seconds })}</span>
-          <Button variant="danger" onClick={stop}>■ {t.recordStop}</Button>
-        </div>
-      )}
-      {(state === "recorded" || state === "saving") && previewUrl && (
-        <>
-          <audio controls src={previewUrl} />
-          {state === "saving" && <ProgressBar value={progress} label={format(t.uploading, { percent: progress })} />}
-          <div className="row">
-            <Button onClick={save} busy={state === "saving"}>{t.recordSave}</Button>
-            <Button variant="secondary" onClick={discard} disabled={state === "saving"}>{t.recordDiscard}</Button>
-          </div>
-        </>
-      )}
+      <VoiceRecorder
+        onSave={async (blob, onProgress) => {
+          const code = await uploadBlob(blob, {}, onProgress);
+          if (!code) onSaved();
+          return code;
+        }}
+      />
     </section>
   );
 }
@@ -264,6 +180,7 @@ export default function MediaPage() {
                 <span className={`badge ${m.status === "clean" ? "ok" : m.status === "infected" || m.status === "rejected" ? "bad" : ""}`}>
                   {t.statuses[m.status]}
                 </span>{" "}
+                {m.viaLink && <span className="badge">{messages.capture.viaLink}</span>}
                 {m.status === "clean" && m.kind !== "image" && m.transcriptStatus && (
                   <span className={`badge ${m.transcriptStatus === "done" ? "ok" : m.transcriptStatus === "failed" ? "bad" : ""}`}>{t.transcriptStatuses[m.transcriptStatus]}</span>
                 )}

@@ -30,7 +30,7 @@ export async function registerSecurity(app: FastifyInstance, ctx: AppContext): P
     origin: [ctx.env.WEB_ORIGIN],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Content-Type"],
+    allowedHeaders: ["Content-Type", "X-Capture-Token"],
     maxAge: 600,
   });
 

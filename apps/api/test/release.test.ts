@@ -193,7 +193,7 @@ describe("release and beneficiary access", () => {
     await req(legator, "POST", `/vault/beneficiaries/${ids.heir}/invite`);
     expect((await accept(heir, "heir@example.com")).json()).toMatchObject({ kind: "beneficiary", vaultReleased: false });
     const list = (await req(heir, "GET", "/inheritances")).json().items;
-    expect(list).toEqual([{ vaultId, legatorName: "משתמש בדיקה", released: false }]);
+    expect(list).toEqual([{ vaultId, legatorName: "משתמש בדיקה", released: false, canSuggest: true }]);
     expect((await req(heir, "GET", `/inheritances/${vaultId}`)).statusCode).toBe(404);
     expect((await req(heir, "GET", `/inheritances/${vaultId}/stories`)).statusCode).toBe(404);
   });

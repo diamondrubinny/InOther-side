@@ -45,7 +45,13 @@ export class InheritanceService {
       .innerJoin(users, eq(users.id, legacyVaults.legatorUserId))
       .where(and(eq(vaultBeneficiaries.userId, userId), eq(vaultBeneficiaries.status, "accepted")));
     // Before release only the fact of being chosen is shown (the legator chose to tell them).
-    return rows.map((r) => ({ vaultId: r.vaultId, legatorName: r.legatorName, released: r.status === "released" }));
+    return rows.map((r) => ({
+      vaultId: r.vaultId,
+      legatorName: r.legatorName,
+      released: r.status === "released",
+      /** The legator is alive and still building: family may suggest questions. */
+      canSuggest: r.status === "building",
+    }));
   }
 
   private async access(userId: string, vaultId: string) {

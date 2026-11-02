@@ -7,7 +7,8 @@ export type MediaJob =
   | { type: "transcribe"; assetId: string }
   | { type: "cleanup" }
   | { type: "finalize_releases" }
-  | { type: "deliver_messages" };
+  | { type: "deliver_messages" }
+  | { type: "weekly_questions" };
 
 /** Abstraction over the job queue so request handlers don't depend on BullMQ directly. */
 export interface MediaQueue {

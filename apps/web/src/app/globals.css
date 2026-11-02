@@ -222,3 +222,12 @@ dialog::backdrop { background: rgb(0 0 0 / 45%); }
 .mouth-dot { position: absolute; inline-size: 14px; block-size: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #e0245e; border: 2px solid #fff; pointer-events: none; }
 
 .mouth-dot.eye { background: #1a5fb4; }
+
+/* Password-free capture page: larger type and controls for older users (#13). */
+.capture-page { font-size: 1.2rem; }
+.capture-page h1 { font-size: 2rem; }
+.capture-page h2 { font-size: 1.35rem; }
+.capture-page textarea { font-size: 1.2rem; }
+.capture-question { margin: 0; padding: 1rem 1.25rem; border-inline-start: 6px solid var(--primary); background: var(--surface-2, rgba(0, 0, 0, 0.03)); font-size: 1.5rem; line-height: 1.5; font-weight: 600; }
+.capture-thanks { font-size: 1.6rem; font-weight: 700; color: var(--primary); }
+.btn.btn-xl { min-block-size: 64px; padding: 0.8rem 1.6rem; font-size: 1.25rem; }

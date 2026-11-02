@@ -77,7 +77,14 @@ export type AuditAction =
   | "message.event_opened"
   | "message.stopped"
   | "message.paused"
-  | "message.resumed";
+  | "message.resumed"
+  | "capture.link_created"
+  | "capture.link_revoked"
+  | "capture.link_used"
+  | "capture.preferences_updated"
+  | "capture.suggestion_created"
+  | "capture.suggestion_accepted"
+  | "capture.suggestion_dismissed";
 
 export interface AuditEntry {
   actorId: string | null;

@@ -489,6 +489,7 @@ export class VaultService {
       questionId: r.questionId,
       text: cipher.decrypt(r.textEnc, aad("answer", "text", r.id)),
       updatedAt: r.updatedAt,
+      viaLink: r.captureLinkId !== null,
     }));
   }
 
@@ -506,7 +507,7 @@ export class VaultService {
     await this.ctx.db
       .insert(guidedAnswers)
       .values({ id, vaultId: vault.id, questionId: input.questionId, textEnc, createdAt: now, updatedAt: now })
-      .onConflictDoUpdate({ target: [guidedAnswers.vaultId, guidedAnswers.questionId], set: { textEnc, updatedAt: now } });
+      .onConflictDoUpdate({ target: [guidedAnswers.vaultId, guidedAnswers.questionId], set: { textEnc, updatedAt: now, captureLinkId: null } });
     await writeAudit(this.ctx.db, {
       actorId: userId,
       action: "vault.answer.saved",
