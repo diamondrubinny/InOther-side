@@ -31,6 +31,7 @@ import { writeAudit } from "../../lib/audit.js";
 import { generateDek, VaultCipher } from "../../lib/crypto/keys.js";
 import { badRequest, conflict, notFound } from "../../lib/errors.js";
 import { mediaKeys } from "../../lib/storage.js";
+import { composeBook } from "../book/book.js";
 
 export const LIMITS = { beneficiaries: 50, executors: 5, stories: 500 } as const;
 
@@ -569,6 +570,14 @@ export class VaultService {
       stories,
       scheduledMessages: messages,
     };
+  }
+
+  /** Printable legacy book for the legator: a preview of everything. */
+  async book(userId: string, locale: Locale) {
+    const { vault, cipher } = await this.getOwned(userId);
+    const stories = await this.ctx.db.select().from(sealedStories).where(eq(sealedStories.vaultId, vault.id)).orderBy(asc(sealedStories.createdAt));
+    const media = await this.ctx.db.select().from(mediaAssets).where(eq(mediaAssets.vaultId, vault.id)).orderBy(asc(mediaAssets.createdAt));
+    return composeBook(this.ctx, vault, cipher, locale, stories, media);
   }
 
   private async assertBelowLimit(

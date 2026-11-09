@@ -79,7 +79,7 @@ test.describe("public site", () => {
     await expect(page.locator("html")).toHaveClass(/a11y-contrast/);
   });
 
-  for (const path of ["/he", "/ar", "/en", "/he/login", "/he/register", "/he/forgot-password", "/he/privacy", "/he/accessibility"]) {
+  for (const path of ["/he", "/ar", "/en", "/he/login", "/he/register", "/he/forgot-password", "/he/privacy", "/he/accessibility", "/he/promises"]) {
     test(`axe: no WCAG 2.1 AA violations on ${path}`, async ({ page }) => {
       await page.goto(path);
       await expectAccessible(page);

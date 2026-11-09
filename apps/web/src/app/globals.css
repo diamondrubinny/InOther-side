@@ -231,3 +231,32 @@ dialog::backdrop { background: rgb(0 0 0 / 45%); }
 .capture-question { margin: 0; padding: 1rem 1.25rem; border-inline-start: 6px solid var(--primary); background: var(--surface-2, rgba(0, 0, 0, 0.03)); font-size: 1.5rem; line-height: 1.5; font-weight: 600; }
 .capture-thanks { font-size: 1.6rem; font-weight: 700; color: var(--primary); }
 .btn.btn-xl { min-block-size: 64px; padding: 0.8rem 1.6rem; font-size: 1.25rem; }
+
+/* Legacy book: readable on screen, laid out for A4 when printed. */
+.book { background: var(--surface); border: 1px solid var(--border, #ddd); border-radius: 12px; padding: 2rem; max-inline-size: 48rem; }
+.book-cover { text-align: center; padding-block: 4rem; border-block-end: 1px solid var(--border, #ddd); margin-block-end: 2rem; }
+.book-cover-sub { letter-spacing: 0.08em; margin: 0; }
+.book-cover-name { font-size: 2.6rem; font-weight: 700; margin-block: 0.5rem 1.5rem; }
+.book-chapter { margin-block-end: 2.5rem; }
+.book-chapter > h2 { border-block-end: 2px solid var(--primary); padding-block-end: 0.3rem; }
+.book-entry { margin-block: 1.25rem; break-inside: avoid; }
+.book-entry h3 { font-size: 1.05rem; margin-block-end: 0.3rem; }
+.book-text { white-space: pre-wrap; margin: 0; line-height: 1.75; }
+.book-recording { display: grid; grid-template-columns: 1fr 8.5rem; gap: 1rem; align-items: start; }
+.book-recording figure { margin: 0; text-align: center; }
+.book-qr { inline-size: 7rem; block-size: 7rem; }
+.book-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 1rem; }
+.book-photos figure { margin: 0; break-inside: avoid; }
+.book-photos img { inline-size: 100%; border-radius: 6px; }
+@media (max-width: 600px) { .book { padding: 1rem; } .book-recording { grid-template-columns: 1fr; } }
+@media print {
+  @page { size: A4; margin: 18mm 16mm; }
+  .no-print, .site-header, .site-footer, .app-nav, .skip-link, .cookie-banner, .a11y-menu, [role="alert"] { display: none !important; }
+  body { background: #fff !important; color: #000 !important; }
+  .container.app-layout { display: block; max-inline-size: none; padding: 0; }
+  .book { border: 0; padding: 0; max-inline-size: none; }
+  .book-cover { break-after: page; padding-block: 35vh 0; border: 0; }
+  .book-chapter { break-before: page; }
+  .book-chapter:first-of-type { break-before: auto; }
+  .book-chapter > h2 { break-after: avoid; }
+}

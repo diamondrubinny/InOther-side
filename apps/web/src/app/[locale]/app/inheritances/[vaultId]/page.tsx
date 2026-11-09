@@ -29,6 +29,18 @@ export default function InheritancePage() {
   useDocumentTitle(summary.data?.legatorName ?? t.inheritancesTitle);
   useEffect(() => () => { if (viewing) URL.revokeObjectURL(viewing.url); }, [viewing]);
 
+  // A QR code in the printed book links here with ?media=<id>: open that recording.
+  const [fromQr, setFromQr] = useState<string | null>(null);
+  useEffect(() => {
+    setFromQr(new URLSearchParams(window.location.search).get("media"));
+  }, []);
+  useEffect(() => {
+    const item = fromQr && media.data?.items.find((m) => m.id === fromQr);
+    if (!item || !base) return;
+    setFromQr(null);
+    void fetchBlob(`${base}/media/${item.id}/content`).then((blob) => setViewing({ item, url: URL.createObjectURL(blob) }));
+  }, [fromQr, media.data, base]);
+
   if (!valid) return <Alert kind="error">{messages.notFound.title}</Alert>;
   if (summary.loading) return <Loading />;
   if (summary.error || !summary.data)
@@ -38,7 +50,10 @@ export default function InheritancePage() {
     <div className="stack">
       <h1>{summary.data.legatorName}</h1>
       <p className="muted">{t.griefNote}</p>
-      <div><Link className="btn" href={`/${locale}/app/persona/${vaultId}`}>{messages.persona.talk}</Link></div>
+      <div className="row">
+        <Link className="btn" href={`/${locale}/app/persona/${vaultId}`}>{messages.persona.talk}</Link>
+        <Link className="btn secondary" href={`/${locale}/app/inheritances/${vaultId}/book`}>{messages.book.open}</Link>
+      </div>
       <p className="muted small">{messages.common.aiNotice}</p>
       {summary.data.openingMessage && (
         <section className="card" aria-labelledby="opening">

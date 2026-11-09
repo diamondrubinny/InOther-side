@@ -16,6 +16,7 @@ import { VaultCipher } from "../../lib/crypto/keys.js";
 import { createDecryptStream } from "../../lib/crypto/stream.js";
 import { notFound } from "../../lib/errors.js";
 import { mediaKeys } from "../../lib/storage.js";
+import { composeBook } from "../book/book.js";
 import { mediaAad } from "../media/media.service.js";
 import { deliveredMediaIds, messageMediaIds } from "../messages/messages.service.js";
 import type { VaultService } from "../vault/vault.service.js";
@@ -148,6 +149,12 @@ export class InheritanceService {
       label: r.labelEnc ? cipher.decrypt(r.labelEnc, mediaAad.label(r.id)) : null,
       storyId: r.storyId,
     }));
+  }
+
+  /** Printable legacy book: only what this beneficiary may see. */
+  async book(userId: string, vaultId: string, locale: Locale) {
+    const { vault, cipher, beneficiaryId } = await this.access(userId, vaultId);
+    return composeBook(this.ctx, vault, cipher, locale, await this.visibleStories(vault.id, beneficiaryId), await this.visibleMedia(vault.id, beneficiaryId));
   }
 
   async mediaContent(userId: string, vaultId: string, mediaId: string): Promise<{ stream: Readable; mime: string; size: number }> {

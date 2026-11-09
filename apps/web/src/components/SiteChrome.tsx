@@ -46,6 +46,7 @@ export function SiteFooter() {
     <footer className="site-footer">
       <div className="container">
         <ul>
+          <li><Link href={`/${locale}/promises`}>{f.promises}</Link></li>
           <li><Link href={`/${locale}/privacy`}>{f.privacy}</Link></li>
           <li><Link href={`/${locale}/terms`}>{f.terms}</Link></li>
           <li><Link href={`/${locale}/cookies`}>{f.cookies}</Link></li>

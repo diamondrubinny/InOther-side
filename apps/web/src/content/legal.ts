@@ -3,7 +3,7 @@
  * (privacy/tech + inheritance), a privacy officer and an accessibility consultant before launch.
  * Items in [square brackets] must be filled in by the operator.
  */
-export type LegalDoc = "privacy" | "terms" | "cookies" | "accessibility";
+export type LegalDoc = "privacy" | "terms" | "cookies" | "accessibility" | "promises";
 
 export interface LegalContent {
   title: string;
@@ -14,6 +14,33 @@ export interface LegalContent {
 const UPDATED = "2026-10-31";
 
 export const LEGAL: Record<LegalDoc, { he: LegalContent; en: LegalContent }> = {
+  /** Public commitments. DRAFT: each line is a public undertaking and needs business + legal sign-off. */
+  promises: {
+    he: {
+      title: "ההבטחות שלנו",
+      updated: "2026-11-09",
+      sections: [
+        { heading: "אין פרסומות, ולא מוכרים מידע", paragraphs: ["אין באתר פרסומות, פיקסלים או כלי מעקב שיווקיים. איננו מוכרים, משכירים או מוסרים מידע אישי לצורכי שיווק, ואיננו מאמנים מודלים של בינה מלאכותית על התוכן שלכם."] },
+        { heading: "לא מוכרים לאנשים באבל", paragraphs: ["מי שמקבל מורשת לא יראה הצעות לשדרוג, מבצעים או לחץ לרכוש. מה שהמוריש השאיר — נמסר."] },
+        { heading: "הדמות לעולם לא פונה ראשונה", paragraphs: ["דמות הבינה המלאכותית לא שולחת הודעות ביוזמתה, לא \"מתגעגעת\" ולא מבקשת שתחזרו. מספר השיחות מוגבל, ויש שיחת פרידה. היא תמיד מסומנת כהדמיה, ולא כאדם עצמו."] },
+        { heading: "המידע שלכם נשאר שלכם", paragraphs: ["אפשר לייצא את כל התוכן בכל עת בפורמט פתוח, ולהפיק ספר מורשת להדפסה.", "מחיקה היא מחיקה: מחיקת כספת משמידה את מפתח ההצפנה שלה, כך שהתוכן אינו ניתן לשחזור."] },
+        { heading: "רק מה שהמוריש החליט", paragraphs: ["הדמות והמסרים נבנים רק מחומר שהאדם עצמו השאיר ובהסכמתו. הוא קובע מי יקבל מה ומתי, ויכול לבחור שהכספת לא תיפתח לעולם."] },
+        { heading: "אם השירות ייסגר", paragraphs: ["[תוכנית ההמשכיות טרם נקבעה — החלטה עסקית פתוחה. הכוונה: הודעה מוקדמת של [X] חודשים, ייצוא מלא לכל משתמש, ומסירת המורשות שכבר נפתחו.]"] },
+      ],
+    },
+    en: {
+      title: "Our promises",
+      updated: "2026-11-09",
+      sections: [
+        { heading: "No ads, and we don't sell data", paragraphs: ["There are no ads, pixels or marketing trackers on this site. We do not sell, rent or hand over personal data for marketing, and we do not train AI models on your content."] },
+        { heading: "We don't sell to people in grief", paragraphs: ["Someone receiving a legacy will not see upgrade offers, promotions or pressure to buy. What the legator left is delivered."] },
+        { heading: "The persona never reaches out first", paragraphs: ["The AI persona does not send messages on its own initiative, does not \"miss you\" and does not ask you to come back. The number of conversations is limited, and there is a farewell conversation. It is always labelled as a simulation, not the person."] },
+        { heading: "Your data stays yours", paragraphs: ["You can export everything at any time in an open format, and produce a printable legacy book.", "Deletion means deletion: deleting a vault destroys its encryption key, so the content cannot be recovered."] },
+        { heading: "Only what the legator decided", paragraphs: ["The persona and the letters are built only from material the person themselves left, with their consent. They decide who receives what and when, and may choose that the vault is never released."] },
+        { heading: "If the service closes", paragraphs: ["[The continuity plan is not yet decided — an open business decision. Intent: [X] months' advance notice, a full export for every user, and delivery of legacies already released.]"] },
+      ],
+    },
+  },
   privacy: {
     he: {
       title: "מדיניות פרטיות",

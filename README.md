@@ -93,6 +93,7 @@ pnpm audit       # סריקת חולשות בתלויות
 | CRUD | `/vault/messages[/:id]` — מסרים מתוזמנים (לוח עברי, חגים, אירועי חיים) | 🔒 |
 | GET / PUT | `/inheritances/:vaultId/messages`, `/inheritances/:vaultId/messages/pause` | 🔒 מוטב, כספת פתוחה |
 | GET / POST | `/inheritances/:vaultId/messages/:id`, `.../:id/open`, `.../:id/stop` | 🔒 מוטב (רק שלו) |
+| GET | `/vault/book`, `/inheritances/:vaultId/book` (ספר מורשת להדפסה) | 🔒 |
 | GET / POST / DELETE | `/vault/capture-links[/:id]`, GET/PUT `/vault/capture-preferences` | 🔒 |
 | GET / POST | `/vault/suggestions`, `/vault/suggestions/:id/accept`, `/dismiss` | 🔒 |
 | GET / POST | `/inheritances/:vaultId/suggestions` | 🔒 מוטב מאושר, כספת בבנייה |

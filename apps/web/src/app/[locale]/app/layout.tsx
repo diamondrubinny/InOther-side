@@ -43,6 +43,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: `${base}/media`, label: n.media },
     { href: `${base}/people`, label: n.people },
     { href: `${base}/letters`, label: messages.letters.nav },
+    { href: `${base}/book`, label: messages.book.nav },
     { href: `${base}/persona-settings`, label: messages.persona.navPersona },
     { href: `${base}/executor`, label: messages.release.navExecutor },
     { href: `${base}/inheritances`, label: messages.release.navInheritances },

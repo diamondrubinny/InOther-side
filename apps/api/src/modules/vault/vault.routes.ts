@@ -60,6 +60,11 @@ export function vaultRoutes(vaults: VaultService, sessions: SessionService) {
       return vaults.summary(userId);
     });
 
+    app.get("/vault/book", async (request) => {
+      const { userId } = requireVerified(request);
+      return vaults.book(userId, request.locale);
+    });
+
     app.delete("/vault", async (request, reply) => {
       const { userId } = requireRecentReauth(request, isRecent);
       await vaults.delete(userId, request.ipHash);
