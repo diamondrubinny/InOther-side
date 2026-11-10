@@ -26,3 +26,11 @@ export function gregorianMonthNames(locale: Locale): { value: number; label: str
   const fmt = new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" });
   return Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: fmt.format(new Date(Date.UTC(2024, i, 15))) }));
 }
+
+/** "1961" | "1961-03" | "1961-03-07" → localized text at that precision. */
+export function formatPartialDate(date: string, locale: Locale): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number | undefined, number | undefined];
+  if (m === undefined) return String(y);
+  const at = new Date(Date.UTC(y, m - 1, d ?? 1, 12));
+  return new Intl.DateTimeFormat(locale, d === undefined ? { month: "long", year: "numeric", timeZone: "UTC" } : { dateStyle: "long", timeZone: "UTC" }).format(at);
+}

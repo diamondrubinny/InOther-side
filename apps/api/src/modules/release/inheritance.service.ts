@@ -17,6 +17,7 @@ import { createDecryptStream } from "../../lib/crypto/stream.js";
 import { notFound } from "../../lib/errors.js";
 import { mediaKeys } from "../../lib/storage.js";
 import { composeBook } from "../book/book.js";
+import { loadTimeline } from "../timeline/timeline.service.js";
 import { mediaAad } from "../media/media.service.js";
 import { deliveredMediaIds, messageMediaIds } from "../messages/messages.service.js";
 import type { VaultService } from "../vault/vault.service.js";
@@ -151,10 +152,18 @@ export class InheritanceService {
     }));
   }
 
+  /** Life timeline; links to stories/media only where this beneficiary may see them. */
+  async timeline(userId: string, vaultId: string) {
+    const { vault, cipher, beneficiaryId } = await this.access(userId, vaultId);
+    const storyIds = new Set((await this.visibleStories(vault.id, beneficiaryId)).map((s) => s.id));
+    const mediaIds = new Set((await this.visibleMedia(vault.id, beneficiaryId)).map((m) => m.id));
+    return loadTimeline(this.ctx, vault, cipher, { storyIds, mediaIds });
+  }
+
   /** Printable legacy book: only what this beneficiary may see. */
   async book(userId: string, vaultId: string, locale: Locale) {
     const { vault, cipher, beneficiaryId } = await this.access(userId, vaultId);
-    return composeBook(this.ctx, vault, cipher, locale, await this.visibleStories(vault.id, beneficiaryId), await this.visibleMedia(vault.id, beneficiaryId));
+    return composeBook(this.ctx, vault, cipher, locale, await this.visibleStories(vault.id, beneficiaryId), await this.visibleMedia(vault.id, beneficiaryId), true);
   }
 
   async mediaContent(userId: string, vaultId: string, mediaId: string): Promise<{ stream: Readable; mime: string; size: number }> {

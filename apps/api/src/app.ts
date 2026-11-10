@@ -24,6 +24,7 @@ import { releaseRoutes } from "./modules/release/release.routes.js";
 import { ReleaseService } from "./modules/release/release.service.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { AuthService } from "./modules/auth/auth.service.js";
+import { TimelineService } from "./modules/timeline/timeline.service.js";
 import { vaultRoutes } from "./modules/vault/vault.routes.js";
 import { VaultService } from "./modules/vault/vault.service.js";
 
@@ -125,7 +126,7 @@ export async function buildApp(env: Env, overrides: ContextOverrides & { dbHandl
 
   await app.register(authRoutes(ctx, auth));
   await app.register(accountRoutes(ctx, auth.sessions, vaults, persona));
-  await app.register(vaultRoutes(vaults, auth.sessions));
+  await app.register(vaultRoutes(vaults, auth.sessions, new TimelineService(ctx, vaults)));
   await app.register(mediaRoutes(media, new TranscriptionService(ctx, vaults)));
   await app.register(releaseRoutes(release, inheritance, auth.sessions));
   await app.register(messagesRoutes(messages));

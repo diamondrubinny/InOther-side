@@ -40,6 +40,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: `${base}/interview`, label: messages.interview.nav },
     { href: `${base}/capture`, label: messages.capture.nav },
     { href: `${base}/stories`, label: n.stories },
+    { href: `${base}/timeline`, label: messages.timeline.nav },
     { href: `${base}/media`, label: n.media },
     { href: `${base}/people`, label: n.people },
     { href: `${base}/letters`, label: messages.letters.nav },

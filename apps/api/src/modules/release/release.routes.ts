@@ -137,6 +137,11 @@ export function releaseRoutes(release: ReleaseService, inheritance: InheritanceS
       const { userId } = requireVerified(request);
       return { items: await inheritance.stories(userId, parse(vaultParam, request.params).vaultId) };
     });
+    app.get("/inheritances/:vaultId/timeline", async (request) => {
+      const { userId } = requireVerified(request);
+      return { items: await inheritance.timeline(userId, parse(vaultParam, request.params).vaultId) };
+    });
+
     app.get("/inheritances/:vaultId/book", async (request) => {
       const { userId } = requireVerified(request);
       return inheritance.book(userId, parse(vaultParam, request.params).vaultId, request.locale);

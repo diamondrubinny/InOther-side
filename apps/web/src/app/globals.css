@@ -260,3 +260,11 @@ dialog::backdrop { background: rgb(0 0 0 / 45%); }
   .book-chapter:first-of-type { break-before: auto; }
   .book-chapter > h2 { break-after: avoid; }
 }
+
+/* Life timeline */
+.timeline-decade { font-size: 1.05rem; color: var(--primary); margin-block: 1.25rem 0.5rem; }
+.timeline-list { border-inline-start: 3px solid var(--border); padding-inline-start: 1rem; display: grid; gap: 0.9rem; }
+.timeline-item { display: grid; grid-template-columns: 9.5rem 1fr; gap: 0.75rem; break-inside: avoid; }
+.timeline-date { font-weight: 600; font-variant-numeric: tabular-nums; }
+.timeline-body { display: grid; gap: 0.3rem; }
+@media (max-width: 600px) { .timeline-item { grid-template-columns: 1fr; gap: 0.15rem; } }

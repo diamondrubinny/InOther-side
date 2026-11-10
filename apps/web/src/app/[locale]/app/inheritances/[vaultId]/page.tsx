@@ -5,10 +5,12 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Dialog } from "@/components/Dialog";
 import { LettersInbox } from "@/components/LettersInbox";
+import { Timeline } from "@/components/Timeline";
 import { Alert, Button, EmptyState, Loading } from "@/components/ui";
 import { errorMessage } from "@/i18n";
 import { useI18n } from "@/i18n/client";
 import { fetchBlob } from "@/lib/api";
+import type { TimelineEvent } from "@inother/shared";
 import type { MediaItem } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
 import { useDocumentTitle } from "@/lib/use-title";
@@ -25,6 +27,7 @@ export default function InheritancePage() {
   const stories = useApi<{ items: { id: string; title: string; body: string }[] }>(base && `${base}/stories`);
   const answers = useApi<{ items: { questionId: string; question: string | null; text: string }[] }>(base && `${base}/answers`);
   const media = useApi<{ items: MediaItem[] }>(base && `${base}/media`);
+  const timeline = useApi<{ items: TimelineEvent[] }>(base && `${base}/timeline`);
   const [viewing, setViewing] = useState<{ item: MediaItem; url: string } | null>(null);
   useDocumentTitle(summary.data?.legatorName ?? t.inheritancesTitle);
   useEffect(() => () => { if (viewing) URL.revokeObjectURL(viewing.url); }, [viewing]);
@@ -62,6 +65,26 @@ export default function InheritancePage() {
         </section>
       )}
       <LettersInbox vaultId={vaultId} />
+      {timeline.data && timeline.data.items.length > 0 && (
+        <section className="stack" aria-labelledby="timeline-h">
+          <h2 id="timeline-h">{messages.timeline.heading}</h2>
+          <div className="card">
+            <Timeline
+              events={timeline.data.items}
+              storyTitles={Object.fromEntries((stories.data?.items ?? []).map((s) => [s.id, s.title]))}
+              actions={(e) => {
+                const item = e.mediaId ? media.data?.items.find((m) => m.id === e.mediaId) : undefined;
+                return item ? (
+                  <Button small variant="secondary" onClick={async () => setViewing({ item, url: URL.createObjectURL(await fetchBlob(`${base}/media/${item.id}/content`)) })}>
+                    {messages.timeline.openMedia}
+                    <span className="visually-hidden">: {e.title}</span>
+                  </Button>
+                ) : null;
+              }}
+            />
+          </div>
+        </section>
+      )}
       <section className="stack" aria-labelledby="stories-h">
         <h2 id="stories-h">{t.storiesTitle}</h2>
         {stories.loading ? <Loading /> : stories.data?.items.length ? (

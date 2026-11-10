@@ -1,9 +1,10 @@
 import { asc, eq, inArray } from "drizzle-orm";
-import { QUESTION_TOPICS, type Locale } from "@inother/shared";
+import { QUESTION_TOPICS, type Locale, type TimelineEvent } from "@inother/shared";
 import type { AppContext } from "../../context.js";
 import { guidedAnswers, interviewEntries, legacyVaults, mediaAssets, mediaTranscripts, sealedStories, users } from "../../db/schema.js";
 import type { VaultCipher } from "../../lib/crypto/keys.js";
 import { mediaAad } from "../media/media.service.js";
+import { loadTimeline } from "../timeline/timeline.service.js";
 
 type VaultRow = typeof legacyVaults.$inferSelect;
 type StoryRow = typeof sealedStories.$inferSelect;
@@ -13,6 +14,8 @@ export interface LegacyBook {
   vaultId: string;
   legatorName: string;
   openingMessage: string | null;
+  /** Life events in chronological order (links only to material in this book). */
+  timeline: TimelineEvent[];
   /** Guided answers grouped by catalog topic, in catalog order. */
   chapters: { id: string; title: string; entries: { question: string; answer: string }[] }[];
   interviews: { question: string; answer: string }[];
@@ -34,6 +37,8 @@ export async function composeBook(
   locale: Locale,
   stories: StoryRow[],
   media: MediaRow[],
+  /** True for beneficiaries: timeline links are limited to `stories` / `media`. */
+  restrictLinks = false,
 ): Promise<LegacyBook> {
   const [legator] = await ctx.db.select({ name: users.displayName }).from(users).where(eq(users.id, vault.legatorUserId));
   const answers = new Map(
@@ -70,6 +75,7 @@ export async function composeBook(
     vaultId: vault.id,
     legatorName: legator?.name ?? "",
     openingMessage: vault.openingMessageEnc ? cipher.decrypt(vault.openingMessageEnc, `vault.opening_message:${vault.id}`) : null,
+    timeline: await loadTimeline(ctx, vault, cipher, restrictLinks ? { storyIds: new Set(stories.map((s) => s.id)), mediaIds: new Set(clean.map((m) => m.id)) } : undefined),
     chapters,
     interviews,
     stories: stories.map((s) => ({ id: s.id, title: cipher.decrypt(s.titleEnc, `story.title:${s.id}`), body: cipher.decrypt(s.bodyEnc, `story.body:${s.id}`) })),

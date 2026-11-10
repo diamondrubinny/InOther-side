@@ -696,3 +696,26 @@ export const capturePreferences = pgTable("capture_preferences", {
   lastSentOn: date("last_sent_on"),
   ...timestamps,
 });
+
+// ---------------------------------------------------------------------------
+// Life timeline
+// ---------------------------------------------------------------------------
+
+/** A dated life event, optionally linked to a story and/or a media file. Everything personal is encrypted. */
+export const timelineEvents = pgTable(
+  "timeline_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => legacyVaults.id, { onDelete: "cascade" }),
+    titleEnc: bytea("title_enc").notNull(),
+    descriptionEnc: bytea("description_enc"),
+    /** "YYYY" | "YYYY-MM" | "YYYY-MM-DD", encrypted (sorted after decryption). */
+    dateEnc: bytea("date_enc").notNull(),
+    storyId: uuid("story_id").references(() => sealedStories.id, { onDelete: "set null" }),
+    mediaId: uuid("media_id").references(() => mediaAssets.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [index("timeline_vault_idx").on(t.vaultId)],
+);

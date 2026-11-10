@@ -12,12 +12,14 @@ import {
   executorUpdateSchema,
   storyInputSchema,
   storyUpdateSchema,
+  timelineEventInputSchema,
   updateVaultSchema,
   uuidParamSchema,
 } from "@inother/shared";
 import { requireRecentReauth, requireVerified } from "../../http/auth-guard.js";
 import { parse } from "../../lib/validate.js";
 import type { SessionService } from "../auth/session.service.js";
+import type { TimelineService } from "../timeline/timeline.service.js";
 import type { VaultService } from "./vault.service.js";
 
 const createVaultSchema = z.object({
@@ -27,7 +29,7 @@ const createVaultSchema = z.object({
 
 const questionParamSchema = z.object({ questionId: z.string().regex(/^[a-z0-9_.-]{1,64}$/) });
 
-export function vaultRoutes(vaults: VaultService, sessions: SessionService) {
+export function vaultRoutes(vaults: VaultService, sessions: SessionService, timeline: TimelineService) {
   const isRecent = sessions.isRecentlyReauthenticated.bind(sessions);
 
   return async function (app: FastifyInstance): Promise<void> {
@@ -58,6 +60,24 @@ export function vaultRoutes(vaults: VaultService, sessions: SessionService) {
       const { userId } = requireVerified(request);
       await vaults.update(userId, parse(updateVaultSchema, request.body), request.ipHash);
       return vaults.summary(userId);
+    });
+
+    app.get("/vault/timeline", async (request) => {
+      const { userId } = requireVerified(request);
+      return { items: await timeline.list(userId) };
+    });
+    app.post("/vault/timeline", async (request, reply) => {
+      const { userId } = requireVerified(request);
+      return reply.status(201).send(await timeline.create(userId, parse(timelineEventInputSchema, request.body), request.ipHash));
+    });
+    app.put("/vault/timeline/:id", async (request) => {
+      const { userId } = requireVerified(request);
+      return timeline.update(userId, parse(uuidParamSchema, request.params).id, parse(timelineEventInputSchema, request.body), request.ipHash);
+    });
+    app.delete("/vault/timeline/:id", async (request, reply) => {
+      const { userId } = requireVerified(request);
+      await timeline.delete(userId, parse(uuidParamSchema, request.params).id, request.ipHash);
+      return reply.status(204).send();
     });
 
     app.get("/vault/book", async (request) => {

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { TimelineEvent } from "@inother/shared";
 import qrcode from "qrcode-generator";
+import { Timeline } from "@/components/Timeline";
 import { Alert, Button, EmptyState, Loading } from "@/components/ui";
 import { errorMessage, format } from "@/i18n";
 import { useI18n } from "@/i18n/client";
@@ -14,6 +16,7 @@ interface Book {
   vaultId: string;
   legatorName: string;
   openingMessage: string | null;
+  timeline: TimelineEvent[];
   chapters: { id: string; title: string; entries: { question: string; answer: string }[] }[];
   interviews: { question: string; answer: string }[];
   stories: { id: string; title: string; body: string }[];
@@ -81,7 +84,7 @@ export function LegacyBook({ mode, vaultId }: { mode: "legator" | "beneficiary";
   if (book.loading) return <Loading />;
   if (book.error || !book.data) return <Alert kind="error">{book.error?.status === 404 ? messages.notFound.title : errorMessage(messages, book.error?.code)}</Alert>;
   const b = book.data;
-  const isEmpty = !b.openingMessage && b.chapters.length + b.interviews.length + b.stories.length + b.recordings.length + b.photos.length === 0;
+  const isEmpty = !b.openingMessage && b.timeline.length + b.chapters.length + b.interviews.length + b.stories.length + b.recordings.length + b.photos.length === 0;
   const recordingUrl = (id: string) =>
     mode === "legator" ? `${window.location.origin}/${locale}/app/media` : `${window.location.origin}/${locale}/app/inheritances/${b.vaultId}?media=${id}`;
   const today = formatDate(new Date().toISOString().slice(0, 10), locale);
@@ -113,6 +116,13 @@ export function LegacyBook({ mode, vaultId }: { mode: "legator" | "beneficiary";
             <section className="book-chapter">
               <h2>{t.opening}</h2>
               <p className="book-text">{b.openingMessage}</p>
+            </section>
+          )}
+
+          {b.timeline.length > 0 && (
+            <section className="book-chapter">
+              <h2>{messages.timeline.heading}</h2>
+              <Timeline events={b.timeline} storyTitles={Object.fromEntries(b.stories.map((s) => [s.id, s.title]))} />
             </section>
           )}
 

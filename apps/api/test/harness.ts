@@ -63,7 +63,7 @@ export async function createHarness(envOverrides: Record<string, string> = {}, o
   await db.db.execute(
     sql`TRUNCATE users, sessions, one_time_tokens, mfa_recovery_codes, mfa_totp_usage, consents, audit_log,
         legacy_vaults, vault_beneficiaries, vault_executors, sealed_stories, sealed_story_audience, guided_answers,
-        media_assets, invitations, release_requests, persona_settings, persona_sessions, persona_profiles, persona_memories, interview_entries, media_transcripts, scheduled_messages, scheduled_message_recipients, message_deliveries, question_suggestions, capture_links, capture_preferences CASCADE`,
+        media_assets, invitations, release_requests, persona_settings, persona_sessions, persona_profiles, persona_memories, interview_entries, media_transcripts, scheduled_messages, scheduled_message_recipients, message_deliveries, question_suggestions, capture_links, capture_preferences, timeline_events CASCADE`,
   );
   const appDb = options.appDatabaseUrl ? createDb(options.appDatabaseUrl, 5) : null;
   const storageDir = await mkdtemp(path.join(os.tmpdir(), "inother-storage-"));
